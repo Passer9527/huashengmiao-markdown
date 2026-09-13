@@ -299,10 +299,21 @@ const CASES = [
   {
     name: '代码块语法高亮生效',
     body: `
-      const tokens = document.querySelectorAll('.hsm-codeblock .hljs-keyword, .hsm-codeblock .hljs-title, .hsm-codeblock .hljs-variable, .hsm-codeblock .hljs-built_in');
-      const lang = document.querySelector('.hsm-codeblock')?.dataset.lang || '';
+      const block = document.querySelector('.hsm-codeblock');
+      if (!block) return { pass: false, detail: '未找到代码块 Widget' };
+      const lang = block.dataset.lang || '';
+      // 分词元素有两种形态：Shiki 输出内联样式，highlight.js 输出 hljs-* 类名，
+      // 因此这里两种都算，不绑定具体引擎。
+      const tokens = block.querySelectorAll(
+        'code span[style], code .hljs-keyword, code .hljs-title, code .hljs-built_in, code .hljs-string, code .hljs-number',
+      );
       const ok = tokens.length > 0 && lang === 'js';
-      return { pass: ok, detail: ok ? \`语言标识=\${lang}，高亮 token 数=\${tokens.length}\` : \`语言=\${lang}，token=\${tokens.length}\` };
+      return {
+        pass: ok,
+        detail: ok
+          ? \`语言标识=\${lang}，分词数=\${tokens.length}\`
+          : \`语言=\${lang}，分词数=\${tokens.length}（高亮未生效）\`,
+      };
     `,
   },
   {
@@ -470,6 +481,80 @@ const CASES = [
         pass: problems.length === 0,
         detail: problems.length ? problems.join('；') + ' || 现场：' + details.join(' | ') : details.join(' | '),
       };
+    `,
+  },
+  {
+    name: '代码块内各类 token 颜色互相区分（关键字/变量/运算符/标点）',
+    body: `
+      await window.__HSM__.run('file.new');
+      await window.__HSM__.wait(300);
+      window.__HSM__.setContent(
+        '\`\`\`python\\n' +
+        'import os\\n' +
+        'def greet(name, count=3):\\n' +
+        '    # 这是注释\\n' +
+        '    message = "hi" + name\\n' +
+        '    return count * 2\\n' +
+        '\`\`\`\\n'
+      );
+      await window.__HSM__.wait(900);
+
+      // 等 Shiki 引擎就绪（首帧由 highlight.js 渲染，就绪后自动升级）
+      let ready = false;
+      for (let i = 0; i < 40; i += 1) {
+        ready = await window.__HSM__
+          .getView()
+          .state
+          ? !!(window.__HSM_SHIKI__ && window.__HSM_SHIKI__.loadedLanguages().length > 0)
+          : false;
+        if (ready) break;
+        await window.__HSM__.wait(500);
+      }
+      if (!ready) return { pass: false, detail: 'Shiki 引擎未在 20 秒内就绪' };
+
+      // 再等一会儿，让实时渲染完成 Widget 重建
+      await window.__HSM__.wait(1500);
+
+      const block = document.querySelector('.hsm-codeblock');
+      if (!block) return { pass: false, detail: '未找到代码块 Widget' };
+      const codeEl = block.querySelector('code');
+      const spans = [...codeEl.querySelectorAll('span[style]')];
+      if (spans.length < 5) {
+        return { pass: false, detail: '代码块没有产生足够的分词（span 数=' + spans.length + '）' };
+      }
+
+      /** 取某个文本对应的计算颜色 */
+      const colorOf = (text) => {
+        const sp = spans.find((s) => s.textContent.trim() === text);
+        return sp ? getComputedStyle(sp).color : null;
+      };
+
+      const role = {
+        关键字: colorOf('def'),
+        函数名: colorOf('greet'),
+        变量: colorOf('name'),
+        运算符: colorOf('='),
+        标点: colorOf('('),
+        数字: colorOf('3'),
+        字符串: colorOf('"hi"'),
+      };
+      const missing = Object.entries(role).filter(([, c]) => !c).map(([k]) => k);
+      if (missing.length) {
+        return { pass: false, detail: '以下语法成分没有被单独分词：' + missing.join('、') + '（span 数=' + spans.length + '）' };
+      }
+
+      const uniq = new Set(Object.values(role));
+      const problems = [];
+      // 至少要有 5 种不同颜色，才算"区分明显"
+      if (uniq.size < 5) problems.push('只有 ' + uniq.size + ' 种不同颜色，区分度不足');
+      // 关键的三组必须互不相同
+      if (role.关键字 === role.变量) problems.push('关键字与变量同色');
+      if (role.变量 === role.运算符) problems.push('变量与运算符同色');
+      if (role.运算符 === role.标点) problems.push('运算符与标点同色');
+      if (role.关键字 === role.运算符) problems.push('关键字与运算符同色，仍不够醒目');
+
+      const detail = Object.entries(role).map(([k, c]) => k + '=' + c).join('  ') + '  （共 ' + uniq.size + ' 种颜色 / ' + spans.length + ' 个分词）';
+      return { pass: problems.length === 0, detail: problems.length ? problems.join('；') + ' || ' + detail : detail };
     `,
   },
   {

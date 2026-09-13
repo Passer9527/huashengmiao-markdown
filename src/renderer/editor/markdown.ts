@@ -33,6 +33,7 @@ import deflistPlugin from 'markdown-it-deflist';
 import hljs from 'highlight.js/lib/common';
 import katex from 'katex';
 import { resolveResourceUrl } from '../../shared/path-utils';
+import { renderCodeBlockHtml, clearShikiCache } from './shiki';
 
 /* ==================================================================
  * 一、工具函数
@@ -628,23 +629,48 @@ export function buildTocHtml(headings: HeadingInfo[]): string {
 }
 
 /**
- * 渲染单个代码块（供实时预览的块级 Widget 使用）
+ * 代码高亮引擎的版本号
+ *
+ * Shiki 是异步加载的：首帧先用 highlight.js 渲染，Shiki 就绪后需要把
+ * 已经渲染出来的代码块换成更精细的结果。代码块 Widget 在构造时记录当时的
+ * 版本号，并在 eq() 中比较——版本号变化时 CodeMirror 会重建 Widget 的 DOM，
+ * 于是高亮结果自动升级。
+ */
+let highlightVersion = 0;
+
+/** 当前高亮引擎版本号 */
+export function getHighlightVersion(): number {
+  return highlightVersion;
+}
+
+/** 高亮引擎升级（Shiki 就绪后调用），返回新版本号 */
+export function bumpHighlightVersion(): number {
+  highlightVersion += 1;
+  clearShikiCache();
+  return highlightVersion;
+}
+
+/**
+ * 渲染单个代码块（供实时预览的块级 Widget 与导出使用）
+ *
+ * 优先使用 Shiki：它能给出变量、运算符、标点等细粒度分类；
+ * Shiki 尚未就绪或语言未收录时回退到 highlight.js。
+ *
  * @param code 代码内容
  * @param lang 语言标识
+ * @param themeId 代码主题标识，默认取当前设置
  */
-export function renderCodeBlock(code: string, lang: string): string {
-  const language = (lang || '').trim().split(/\s+/)[0].toLowerCase();
-  let body: string;
-  if (language && hljs.getLanguage(language)) {
-    try {
-      body = hljs.highlight(code, { language, ignoreIllegals: true }).value;
-    } catch {
-      body = escapeHtml(code);
-    }
-  } else {
-    body = escapeHtml(code);
-  }
-  return body;
+export function renderCodeBlock(code: string, lang: string, themeId?: string): string {
+  const theme = themeId ?? currentCodeTheme;
+  return renderCodeBlockHtml(code, lang, theme);
+}
+
+/** 当前代码主题（由界面层在设置变化时写入，供代码块渲染使用） */
+let currentCodeTheme = 'github';
+
+/** 设置当前代码主题 */
+export function setCodeTheme(themeId: string): void {
+  currentCodeTheme = themeId;
 }
 
 /**

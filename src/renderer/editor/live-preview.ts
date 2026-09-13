@@ -29,7 +29,16 @@ import {
 import { EditorState, StateField, type Range, type Text } from '@codemirror/state';
 import { syntaxTree } from '@codemirror/language';
 import type MarkdownIt from 'markdown-it';
-import { renderCodeBlock, escapeHtml, renderMath, renderTable, extractHeadings, buildTocHtml, type HeadingInfo } from './markdown';
+import {
+  renderCodeBlock,
+  escapeHtml,
+  renderMath,
+  renderTable,
+  extractHeadings,
+  buildTocHtml,
+  getHighlightVersion,
+  type HeadingInfo,
+} from './markdown';
 import { paintMermaid } from './mermaid';
 import { resolveResourceUrl } from '../../shared/path-utils';
 
@@ -90,12 +99,18 @@ class CodeBlockWidget extends WidgetType {
   constructor(
     readonly code: string,
     readonly lang: string,
+    /** 渲染时所使用的高亮引擎版本；Shiki 就绪后版本号变化，Widget 会自动重建 */
+    readonly highlightVersion: number,
   ) {
     super();
   }
 
   eq(other: CodeBlockWidget): boolean {
-    return other.code === this.code && other.lang === this.lang;
+    return (
+      other.code === this.code &&
+      other.lang === this.lang &&
+      other.highlightVersion === this.highlightVersion
+    );
   }
 
   toDOM(): HTMLElement {
@@ -1573,7 +1588,7 @@ function buildBlockWidgets(state: EditorState, deps: LivePreviewDeps): Decoratio
         const code = doc.sliceString(block.contentFrom, block.contentTo);
         widget = /^(mermaid|mmd)$/i.test(block.lang)
           ? new MermaidWidget(code)
-          : new CodeBlockWidget(code, block.lang);
+          : new CodeBlockWidget(code, block.lang, getHighlightVersion());
         break;
       }
       case 'math': {

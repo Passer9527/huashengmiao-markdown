@@ -93,8 +93,15 @@ import {
   dispatch,
 } from './editor/editor';
 
-import { createMarkdownIt, renderDocument, computeStats, type HeadingInfo } from './editor/markdown';
+import {
+  createMarkdownIt,
+  renderDocument,
+  computeStats,
+  bumpHighlightVersion,
+  type HeadingInfo,
+} from './editor/markdown';
 import { renderMermaid, clearMermaidCache } from './editor/mermaid';
+import { loadShiki } from './editor/shiki';
 import {
   initSidebar,
   showPanel,
@@ -181,6 +188,21 @@ async function bootstrap(): Promise<void> {
 
     console.log(`%c🌱 花生苗 Markdown 编辑器 v${window.__APP_VERSION__} 已就绪`, 'color:#22a06b;font-weight:bold');
     console.log('作者：何飞  微信：6731663  MIT 开源协议');
+
+    // 后台加载 Shiki 代码高亮引擎：首帧先用 highlight.js 渲染，
+    // 引擎就绪后再把代码块升级为更精细的分类结果（变量、运算符、标点都有独立配色）。
+    // 放在启动之后再加载，避免与首屏渲染争抢时间。
+    window.setTimeout(() => {
+      void loadShiki().then((mod) => {
+        if (!mod) return;
+        bumpHighlightVersion();
+        // 触发一次选区事务，让实时渲染重建代码块 Widget
+        if (view) {
+          view.dispatch({ selection: { anchor: view.state.selection.main.head } });
+        }
+        console.log('[花生苗] Shiki 代码高亮引擎已就绪');
+      });
+    }, 900);
 
     // 装载调试与自动化接口
     installDebugApi();

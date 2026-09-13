@@ -96,6 +96,16 @@ const targets = [
     },
   },
   {
+    name: 'Shiki 代码高亮包',
+    options: {
+      ...browserCommon,
+      entryPoints: [path.join(ROOT, 'src/renderer/editor/shiki-entry.ts')],
+      outfile: path.join(DIST, 'renderer/shiki.js'),
+      // 与 Mermaid 同理：体积较大且只在出现代码块时才需要，单独成包按需加载
+      minify: true,
+    },
+  },
+  {
     name: 'Mermaid 按需包',
     options: {
       ...browserCommon,
@@ -165,6 +175,7 @@ async function buildAll() {
     'preload/preload.js',
     'renderer/renderer.js',
     'renderer/mermaid.js',
+    'renderer/shiki.js',
     'renderer/renderer.css',
   ]) {
     const p = path.join(DIST, f);

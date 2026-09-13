@@ -546,6 +546,13 @@ export interface CodeThemeColors {
   tag: string;
   deletion: string;
   addition: string;
+  /* ---- 以下三项是"区分度"的关键：变量、运算符、标点 ---- */
+  /** 变量名（含参数） */
+  variable: string;
+  /** 运算符（= + - * / == 等） */
+  operator: string;
+  /** 标点与分隔符（括号、逗号、冒号等） */
+  punctuation: string;
 }
 
 export interface CodeThemeDef {
@@ -605,35 +612,35 @@ export const CODE_THEMES: CodeThemeDef[] = [
     comment: '#6e7781', keyword: '#cf222e', string: '#0a3069',
     number: '#0550ae', title: '#8250df', builtin: '#953800',
     literal: '#0550ae', type: '#953800', attr: '#116329',
-    meta: '#0550ae', tag: '#116329', deletion: '#82071e', addition: '#116329',
+    meta: '#0550ae', tag: '#116329', deletion: '#82071e', variable: '#953800', operator: '#1b7c83', punctuation: '#57606a', addition: '#116329',
   }),
   codeTheme('dracula', 'Dracula', true, {
     bg: '#282a36', border: '#3b3d4b', text: '#f8f8f2',
     comment: '#6272a4', keyword: '#ff79c6', string: '#f1fa8c',
     number: '#bd93f9', title: '#50fa7b', builtin: '#8be9fd',
     literal: '#bd93f9', type: '#8be9fd', attr: '#50fa7b',
-    meta: '#f1fa8c', tag: '#ff79c6', deletion: '#ff5555', addition: '#50fa7b',
+    meta: '#f1fa8c', tag: '#ff79c6', deletion: '#ff5555', variable: '#ffb86c', operator: '#8be9fd', punctuation: '#6272a4', addition: '#50fa7b',
   }),
   codeTheme('monokai', 'Monokai', true, {
     bg: '#272822', border: '#3b3c35', text: '#f8f8f2',
     comment: '#75715e', keyword: '#f92672', string: '#e6db74',
     number: '#ae81ff', title: '#a6e22e', builtin: '#66d9ef',
     literal: '#ae81ff', type: '#66d9ef', attr: '#a6e22e',
-    meta: '#e6db74', tag: '#f92672', deletion: '#f92672', addition: '#a6e22e',
+    meta: '#e6db74', tag: '#f92672', deletion: '#f92672', variable: '#fd971f', operator: '#66d9ef', punctuation: '#75715e', addition: '#a6e22e',
   }),
   codeTheme('one-dark', 'One Dark', true, {
     bg: '#282c34', border: '#3a3f4b', text: '#abb2bf',
     comment: '#5c6370', keyword: '#c678dd', string: '#98c379',
     number: '#d19a66', title: '#61afef', builtin: '#e5c07b',
     literal: '#d19a66', type: '#e5c07b', attr: '#e06c75',
-    meta: '#56b6c2', tag: '#e06c75', deletion: '#e06c75', addition: '#98c379',
+    meta: '#56b6c2', tag: '#e06c75', deletion: '#e06c75', variable: '#e06c75', operator: '#56b6c2', punctuation: '#7f848e', addition: '#98c379',
   }),
   codeTheme('solarized-light', 'Solarized Light', false, {
     bg: '#fdf6e3', border: '#eee8d5', text: '#657b83',
     comment: '#93a1a1', keyword: '#859900', string: '#2aa198',
     number: '#d33682', title: '#268bd2', builtin: '#b58900',
     literal: '#d33682', type: '#b58900', attr: '#268bd2',
-    meta: '#cb4b16', tag: '#268bd2', deletion: '#dc322f', addition: '#859900',
+    meta: '#cb4b16', tag: '#268bd2', deletion: '#dc322f', variable: '#cb4b16', operator: '#6c71c4', punctuation: '#93a1a1', addition: '#859900',
   }),
 ];
 
