@@ -60,6 +60,85 @@ function run(command, args, options = {}) {
   });
 }
 
+/**
+ * 把某个 git 命令的输出按行拆成非空数组
+ * @param {string} text 命令输出
+ * @returns {string[]} 去掉空行与首尾空白后的结果
+ */
+function lines(text) {
+  return text
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+/**
+ * 安全地推送源码到远程 main。
+ *
+ * 为什么要写得这么麻烦：
+ *   远程仓库常见两种"看起来该能推、实际推不上去"的状态——
+ *   1）在 GitHub 网页上勾选了 README / .gitignore 初始化，远程多出一个提交；
+ *   2）仓库刚建好时用 API 探测过写权限，留下若干"空提交"（不携带任何文件）。
+ *   这两种情况下本地 main 与远程 main 没有快进关系，普通 git push 会被拒绝。
+ *
+ * 处理策略（宁可报错也绝不丢用户内容）：
+ *   · 本地包含远程 → 直接快进推送；
+ *   · 远程分支上没有任何文件、却有本地没有的提交 → 这些提交是空历史，
+ *     用 --force-with-lease 覆盖（不会丢失任何文件内容）；
+ *   · 远程存在本地没有的文件 → 停止推送并提示人工合并，绝不擅自覆盖。
+ */
+async function pushSource() {
+  // 先取回远程最新状态，--force-with-lease 也依赖这一步的结果做安全校验
+  await run('git', ['fetch', 'origin'], { allowFail: true, capture: true });
+
+  const hasRemote = await run('git', ['rev-parse', '--verify', '--quiet', 'origin/main'], {
+    allowFail: true,
+    capture: true,
+  });
+
+  // 远程还没有 main 分支：首次推送
+  if (hasRemote.code !== 0) {
+    await run('git', ['push', '-u', 'origin', 'main']);
+    return;
+  }
+
+  // 本地包含远程全部提交：正常快进
+  const fastForward = await run('git', ['merge-base', '--is-ancestor', 'origin/main', 'main'], {
+    allowFail: true,
+    capture: true,
+  });
+  if (fastForward.code === 0) {
+    await run('git', ['push', '-u', 'origin', 'main']);
+    return;
+  }
+
+  // 走到这里说明历史出现分叉，需要判断远程是否携带真实文件
+  const remoteOnlyCommits = lines((await run('git', ['rev-list', 'main..origin/main'], { capture: true })).out);
+  // diff 中状态为 A 的条目 = 只存在于远程、本地没有的文件
+  const diffOut = (
+    await run('git', ['diff', '--name-status', 'main', 'origin/main'], { allowFail: true, capture: true })
+  ).out;
+  const remoteOnlyFiles = lines(diffOut)
+    .filter((l) => l.startsWith('A\t'))
+    .map((l) => l.split('\t').slice(1).join('\t'));
+
+  console.log(`  · 远程 main 比本地多 ${remoteOnlyCommits.length} 个提交，其中新增文件 ${remoteOnlyFiles.length} 个`);
+
+  if (remoteOnlyFiles.length > 0) {
+    console.error('✗ 远程 main 上存在本地没有的文件，为避免覆盖他人内容已中止推送：');
+    for (const f of remoteOnlyFiles.slice(0, 20)) console.error(`    ${f}`);
+    if (remoteOnlyFiles.length > 20) console.error(`    …另有 ${remoteOnlyFiles.length - 20} 个`);
+    console.error('');
+    console.error('  请先人工合并远程改动后重新运行：');
+    console.error('    git pull --rebase origin main');
+    console.error('    node scripts/publish-github.mjs');
+    process.exit(1);
+  }
+
+  console.log('  · 这些提交不携带任何文件（空历史），改用 --force-with-lease 安全覆盖');
+  await run('git', ['push', '--force-with-lease', '-u', 'origin', 'main']);
+}
+
 /** 主流程 */
 async function main() {
   console.log('══════════════════════════════════════════════════');
@@ -87,7 +166,7 @@ async function main() {
   }
 
   console.log('\n▶ 推送源码…');
-  await run('git', ['push', '-u', 'origin', 'main']);
+  await pushSource();
   console.log('  ✓ 源码已推送');
 
   if (pushOnly) {
