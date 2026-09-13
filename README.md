@@ -226,7 +226,7 @@
 
 ### Windows（推荐）
 
-1. 下载 Windows 安装包 **`花生苗Markdown编辑器-1.0.0-x64-*.exe`**（也可使用免安装便携版，解压即用、可放 U 盘）。
+1. 下载 Windows 安装包 **`huashengmiao-markdown-Setup-1.0.0-x64.exe`**（也可使用免安装便携版，解压即用、可放 U 盘）。
 2. **双击安装包**，进入中文图形化 NSIS 安装向导。
 3. 在向导中按需选择：
    - 📂 **自定义安装路径**：点击「浏览」按钮可自由选择安装目录（提示文案：「请选择安装位置，点击"浏览"可更换目录。」）；
@@ -246,17 +246,17 @@
 
 | 发行形式 | 使用方式 | 适用场景 |
 | --- | --- | --- |
-| **`huashengmiao-markdown-1.0.0-x64.AppImage`** | `chmod +x` 后**双击运行**（或命令行执行） | 免安装，兼容所有主流发行版 |
-| **`huashengmiao-markdown_1.0.0_amd64.deb`** | **双击安装**（或用 `sudo dpkg -i` 安装），自动创建应用菜单项 | Debian / Ubuntu 系 |
+| **`huashengmiao-markdown-1.0.0-x86_64.AppImage`** | `chmod +x` 后**双击运行**（或命令行执行） | 免安装，兼容所有主流发行版 |
+| **`huashengmiao-markdown-1.0.0-amd64.deb`** | **双击安装**（或用 `sudo dpkg -i` 安装），自动创建应用菜单项 | Debian / Ubuntu 系 |
 | **`huashengmiao-markdown-1.0.0-x64.tar.gz`** | 解压到任意目录后直接运行目录内的可执行文件 | 绿色解压版，无需 root 权限 |
 
 ```bash
 # AppImage 方式
-chmod +x huashengmiao-markdown-1.0.0-x64.AppImage
-./huashengmiao-markdown-1.0.0-x64.AppImage
+chmod +x huashengmiao-markdown-1.0.0-x86_64.AppImage
+./huashengmiao-markdown-1.0.0-x86_64.AppImage
 
 # deb 方式
-sudo dpkg -i huashengmiao-markdown_1.0.0_amd64.deb
+sudo dpkg -i huashengmiao-markdown-1.0.0-amd64.deb
 sudo apt-get install -f     # 如提示缺少依赖则执行此步修复
 
 # tar.gz 方式
@@ -282,7 +282,7 @@ macOS 用户如需使用，有两种方式：
 
 1. **从源码运行**（推荐先这样体验）：参考下方[开发环境搭建](#-开发环境搭建)，执行 `npm install && npm start`；
 2. **自行构建安装包**：在 macOS 机器上执行 `npx electron-builder --mac`（依赖 `electron-builder.yml` 中的 `mac` 段），
-   产物为 `release/花生苗Markdown编辑器-1.0.0-<arch>.dmg`。由于未做代码签名与公证，
+   产物为 `release/huashengmiao-markdown-1.0.0-<arch>.dmg`。由于未做代码签名与公证，
    首次打开需在「系统设置 → 隐私与安全性」中允许运行。
 
 后续版本将提供经过签名的 macOS 正式安装包（详见[路线图](#-路线图)）。
@@ -534,15 +534,18 @@ npm run pack:dir
 
 | 平台 | 产物 | 实际文件示例 | 说明 |
 | --- | --- | --- | --- |
-| Windows | NSIS 中文安装向导 | `花生苗Markdown编辑器-Setup-1.0.0-x64.exe` | 带向导的安装程序，可自定义安装路径、勾选快捷方式 |
-| Windows | 免安装便携版 | `花生苗Markdown编辑器-便携版-1.0.0-x64.exe` | 单文件，双击即用，可放 U 盘 |
+| Windows | NSIS 中文安装向导 | `huashengmiao-markdown-Setup-1.0.0-x64.exe` | 带向导的安装程序，可自定义安装路径、勾选快捷方式 |
+| Windows | 免安装便携版 | `huashengmiao-markdown-Portable-1.0.0-x64.exe` | 单文件，双击即用，可放 U 盘 |
 | Linux | AppImage | `huashengmiao-markdown-1.0.0-x86_64.AppImage` | 免安装，`chmod +x` 后双击运行 |
 | Linux | deb | `huashengmiao-markdown-1.0.0-amd64.deb` | Debian / Ubuntu 双击安装，自动创建应用菜单项 |
 | Linux | tar.gz | `huashengmiao-markdown-1.0.0-x64.tar.gz` | 绿色解压版 |
-| macOS | dmg | `花生苗Markdown编辑器-1.0.0-<arch>.dmg` | 配置已预留（x64 与 arm64），需在 macOS 机器上构建；未签名，首次打开需在「系统设置 → 隐私与安全性」中允许 |
+| macOS | dmg | `huashengmiao-markdown-1.0.0-<arch>.dmg` | 配置已预留（x64 与 arm64），需在 macOS 机器上构建；未签名，首次打开需在「系统设置 → 隐私与安全性」中允许 |
 
-> ℹ️ 产物文件名由 `electron-builder.yml` 中的 `artifactName` 决定（Windows 与 macOS 使用中文产品名，
-> Linux 使用 `${name}` 即包名 `huashengmiao-markdown`）。实际生成的文件名请以 `release/` 目录中看到的为准。
+> ℹ️ 产物文件名由 `electron-builder.yml` 中的 `artifactName` 决定，**统一使用英文文件名**：
+> GitHub Release 的附件名只接受 ASCII 字符，上传中文文件名会被自动替换成 `.`
+> （例如「花生苗Markdown编辑器-Setup」会变成「Markdown.-Setup」），用户下载到的文件看起来像是坏的。
+> 因此**安装包文件名用英文，安装后的程序名、快捷方式名、卸载入口名仍然是中文**「花生苗Markdown编辑器」。
+> 实际生成的文件名请以 `release/` 目录中看到的为准。
 
 **安装包内不含 `node_modules`**：主进程与渲染进程都已被 esbuild 完整打包，KaTeX 的公式样式与字体也在构建阶段
 复制到 `dist/renderer/katex/`，因此运行时不需要任何第三方模块文件，安装包体积因此减少约 70 MB。

@@ -178,6 +178,13 @@ Markdown 编辑器，聚焦「P0 全部 + P1 主要项」，形成可安装、�
 - 界面语言设置项已提供「简体中文 / English」选项，v1.0.0 以简体中文为主要界面语言
 
 ### 修复
+- **安装包文件名改用英文**：GitHub Release 的附件名只接受 ASCII 字符，此前上传
+  `花生苗Markdown编辑器-Setup-1.0.0-x64.exe` 会被自动改写成
+  `Markdown.-Setup-1.0.0-x64.exe`，用户下载到的文件看起来像是坏的。
+  现统一为 `huashengmiao-markdown-Setup-1.0.0-x64.exe` 与
+  `huashengmiao-markdown-Portable-1.0.0-x64.exe`；
+  **软件自身的中文名不受影响**——安装后的程序名、桌面与开始菜单快捷方式、
+  「应用和功能」中的卸载入口仍然是「花生苗Markdown编辑器」。
 - **代码高亮引擎由 highlight.js 升级为 Shiki**（VS Code 同款 TextMate 语法）：
   原先 highlight.js 对 Python 等语言的分词粒度过粗，`a = 10` 只标出数字，
   变量、运算符、括号全都不着色，代码块看起来「关键字、变量、符号混在一起」。

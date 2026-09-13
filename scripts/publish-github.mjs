@@ -139,6 +139,74 @@ async function pushSource() {
   await run('git', ['push', '--force-with-lease', '-u', 'origin', 'main']);
 }
 
+/**
+ * 更新 Release 的标题与说明。
+ *
+ * gh release edit 在带 --latest 时有较大概率返回 HTTP 500
+ * （GitHub 接口在设置"最新版本"标记这一步不稳定），
+ * 但此时标题与说明其实已经写入成功。因此这里做成"带 --latest 失败就退回不带"，
+ * 避免一次无关紧要的标记失败让整个发布流程报错退出。
+ *
+ * @param {string} tag 版本标签，如 v1.0.0
+ * @param {string} title Release 标题
+ * @param {string} notes Release 说明（Markdown）
+ * @param {string[]} extraArgs 追加参数，例如 --draft=false / --latest
+ */
+async function editRelease(tag, title, notes, extraArgs = []) {
+  const base = ['release', 'edit', tag, '--title', title, '--notes', notes];
+  const result = await run('gh', [...base, ...extraArgs], { allowFail: true, capture: true });
+  if (result.code === 0) return;
+
+  // 退一步：去掉 --latest 再试一次，保底把标题与说明写进去
+  const fallbackArgs = extraArgs.filter((a) => a !== '--latest');
+  if (fallbackArgs.length !== extraArgs.length) {
+    console.log('  · 设置 --latest 失败（GitHub 返回 500），改为不带该标记重试');
+    const retry = await run('gh', [...base, ...fallbackArgs], { allowFail: true, capture: true });
+    if (retry.code === 0) return;
+    throw new Error(`更新 Release 说明失败：${retry.out.trim().split('\n').pop()}`);
+  }
+  throw new Error(`更新 Release 说明失败：${result.out.trim().split('\n').pop()}`);
+}
+
+/**
+ * 清理 Release 上多余的历史附件。
+ *
+ * 重新打包后文件名可能变化（例如把中文文件名改成英文），旧附件会一直留在
+ * Release 页面上，既让用户困惑又白占空间。这里按"本地本次要发布的文件清单"
+ * 精确比对，只删除不在清单里的附件——不碰其它 Release，也不会误删本次产物。
+ *
+ * @param {number} releaseId Release 数字 id
+ * @param {string[]} assets 本次要发布的本地文件绝对路径列表
+ */
+async function pruneStaleAssets(releaseId, assets) {
+  const keep = new Set(assets.map((a) => path.basename(a)));
+  const listed = await run('gh', ['api', `repos/${OWNER}/${REPO}/releases/${releaseId}/assets`, '--paginate'], {
+    allowFail: true,
+    capture: true,
+  });
+  if (listed.code !== 0) return;
+
+  /** @type {{id:number,name:string}[]} */
+  let remoteAssets = [];
+  try {
+    remoteAssets = JSON.parse(listed.out || '[]');
+  } catch {
+    return;
+  }
+
+  const stale = remoteAssets.filter((a) => !keep.has(a.name));
+  if (stale.length === 0) return;
+
+  console.log(`  · 清理 ${stale.length} 个不属于本次发布的旧附件`);
+  for (const a of stale) {
+    const del = await run('gh', ['api', '-X', 'DELETE', `repos/${OWNER}/${REPO}/releases/assets/${a.id}`], {
+      allowFail: true,
+      capture: true,
+    });
+    console.log(`    ${del.code === 0 ? '已删除' : '删除失败'}  ${a.name}`);
+  }
+}
+
 /** 主流程 */
 async function main() {
   console.log('══════════════════════════════════════════════════');
@@ -209,8 +277,8 @@ async function main() {
     '',
     '| 平台 | 文件 | 说明 |',
     '| --- | --- | --- |',
-    '| Windows | `花生苗Markdown编辑器-Setup-*.exe` | 安装向导，可自定义安装路径、可勾选桌面与开始菜单快捷方式 |',
-    '| Windows | `花生苗Markdown编辑器-便携版-*.exe` | 单文件免安装，双击即用 |',
+    '| Windows | `huashengmiao-markdown-Setup-*.exe` | 安装向导，可自定义安装路径、可勾选桌面与开始菜单快捷方式 |',
+    '| Windows | `huashengmiao-markdown-Portable-*.exe` | 单文件免安装，双击即用 |',
     '| Linux | `*.AppImage` | 免安装，`chmod +x` 后双击运行 |',
     '| Linux | `*.deb` | Debian / Ubuntu 双击安装 |',
     '| Linux | `*.tar.gz` | 绿色解压版 |',
@@ -222,16 +290,48 @@ async function main() {
     '下载后可直接双击安装；安装包未做代码签名，首次运行可能出现系统安全提示，选择"仍要运行"即可。',
   ].join('\n');
 
-  const ghArgs = ['release', 'create', tag, '--title', `花生苗 Markdown 编辑器 ${tag}`, '--notes', notes];
-  if (!process.env.HSM_RELEASE_NO_LATEST) ghArgs.push('--latest');
-  for (const a of assets) ghArgs.push(a);
+  /* -------------------- 4. 决定新建还是复用已有 Release -------------------- */
+  // 必须用 API 查询而不是 gh release view：草稿（draft）Release 用 view 查不到，
+  // 而"上一次运行留下同名草稿"恰恰是最常见的重复发布场景——
+  // 此时直接再调用 gh release create 会被 GitHub 拒绝并返回 HTTP 500。
+  const listResult = await run('gh', ['api', `repos/${OWNER}/${REPO}/releases`, '--paginate'], {
+    allowFail: true,
+    capture: true,
+  });
 
-  const exists = await run('gh', ['release', 'view', tag], { allowFail: true, capture: true });
-  if (exists.code === 0) {
-    console.log(`  · 已存在 ${tag}，改为上传附件到该 Release`);
+  /** @type {{tag_name?:string, draft?:boolean, id?:number}|null} */
+  let existing = null;
+  try {
+    const list = JSON.parse(listResult.out || '[]');
+    existing = list.find((r) => r.tag_name === tag) ?? null;
+  } catch {
+    // API 返回异常时按"不存在"处理，后面的 create 会给出真实错误
+    existing = null;
+  }
+
+  const title = `花生苗 Markdown 编辑器 ${tag}`;
+  const latestArgs = process.env.HSM_RELEASE_NO_LATEST ? [] : ['--latest'];
+
+  if (existing && existing.draft) {
+    // 复用草稿：先补传附件，再把草稿转正，这样不会在仓库里留下两个同 tag 的 Release
+    console.log(`  · 已存在同名草稿 Release（id ${existing.id}），尝试复用`);
+    const uploaded = await run('gh', ['release', 'upload', tag, ...assets, '--clobber'], { allowFail: true });
+    if (uploaded.code === 0) {
+      await editRelease(tag, title, notes, ['--draft=false', ...latestArgs]);
+      await pruneStaleAssets(existing.id, assets);
+    } else {
+      // 草稿还没有对应的 tag 引用，gh 有时会定位不到它；此时删掉这个空草稿重新创建
+      console.log('  · gh 无法按 tag 定位草稿，改为删除后重新创建');
+      await run('gh', ['release', 'delete', tag, '--yes', '--cleanup-tag'], { allowFail: true });
+      await run('gh', ['release', 'create', tag, '--title', title, '--notes', notes, ...latestArgs, ...assets]);
+    }
+  } else if (existing) {
+    console.log(`  · 已存在正式 Release ${tag}，仅更新附件与说明`);
     await run('gh', ['release', 'upload', tag, ...assets, '--clobber']);
+    await pruneStaleAssets(existing.id, assets);
+    await editRelease(tag, title, notes, latestArgs);
   } else {
-    await run('gh', ghArgs);
+    await run('gh', ['release', 'create', tag, '--title', title, '--notes', notes, ...latestArgs, ...assets]);
   }
 
   console.log('\n══════════════════════════════════════════════════');

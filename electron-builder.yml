@@ -106,7 +106,13 @@ nsis:
   # 卸载入口在"应用和功能"中的显示名称
   uninstallDisplayName: 花生苗 Markdown 编辑器 ${version}
   # 安装包文件名（与便携版区分，避免重名）
-  artifactName: 花生苗Markdown编辑器-Setup-${version}-${arch}.${ext}
+  #
+  # 为什么这里用英文而不是中文产品名：
+  #   GitHub Release 的附件名只接受 ASCII 字符，上传中文文件名时会被自动
+  #   替换成 '.'（例如"花生苗Markdown编辑器-Setup"会变成"Markdown.-Setup"），
+  #   用户下载到的文件看起来像是坏的。文件名统一用英文，产品名、快捷方式名、
+  #   卸载入口名仍然保持中文，用户在系统里看到的依旧是「花生苗Markdown编辑器」。
+  artifactName: huashengmiao-markdown-Setup-${version}-${arch}.${ext}
 
 # .md 等文件关联：安装后双击 Markdown 文件可用本软件打开
 fileAssociations:
@@ -181,7 +187,8 @@ deb:
 # Windows 便携版
 # ------------------------------------------------------------------
 portable:
-  artifactName: 花生苗Markdown编辑器-便携版-${version}-${arch}.${ext}
+  # 同样使用英文文件名，原因见 nsis.artifactName 处的说明
+  artifactName: huashengmiao-markdown-Portable-${version}-${arch}.${ext}
 
 # ------------------------------------------------------------------
 # macOS（预留，需在 macOS 机器上构建）
@@ -194,7 +201,8 @@ mac:
         - arm64
   icon: build/icon.png
   category: public.app-category.productivity
-  artifactName: 花生苗Markdown编辑器-${version}-${arch}.${ext}
+  # 同样避免中文文件名，保证在任何下载渠道都不会被转义
+  artifactName: huashengmiao-markdown-${version}-${arch}.${ext}
   # 未签名，用户首次打开需在"系统设置 → 隐私与安全性"中允许
   identity: null
 
