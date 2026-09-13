@@ -118,8 +118,15 @@ function lines(text) {
  *   · 远程存在本地没有的文件 → 停止推送并提示人工合并，绝不擅自覆盖。
  */
 async function pushSource() {
-  // 先取回远程最新状态，--force-with-lease 也依赖这一步的结果做安全校验
-  await run('git', ['fetch', 'origin'], { allowFail: true, capture: true });
+  // 先取回远程最新状态，--force-with-lease 也依赖这一步的结果做安全校验。
+  // 网络抖动会导致 fetch 失败，这里重试几次；全部失败时用本地已有的
+  // refs/remotes/origin/main 继续（可能略旧，但后面的判断仍然安全）。
+  for (let i = 1; i <= 3; i += 1) {
+    const fetched = await run('git', ['fetch', 'origin'], { allowFail: true, capture: true });
+    if (fetched.code === 0) break;
+    if (i === 3) console.log('  · 获取远程状态失败（网络抖动），改用本地记录的远程分支继续');
+    else await new Promise((r) => setTimeout(r, i * 2000));
+  }
 
   const hasRemote = await run('git', ['rev-parse', '--verify', '--quiet', 'origin/main'], {
     allowFail: true,
@@ -245,14 +252,29 @@ async function main() {
 
   /* -------------------- 1. 检查仓库是否存在 -------------------- */
   console.log('▶ 检查远程仓库…');
-  const probe = await run('git', ['ls-remote', '--heads', REMOTE_URL], { allowFail: true, capture: true });
-  if (probe.code !== 0) {
-    console.error(`✗ 无法访问 ${REMOTE_URL}`);
-    console.error('  请先在浏览器打开 https://github.com/new 创建同名 Public 空仓库');
-    console.error('  （不要勾选任何初始化选项），然后重新运行本脚本。');
+  // 判断"仓库不存在"必须用 api.github.com（gh）而不是 git ls-remote：
+  // 国内网络访问 github.com 的 git over HTTPS 经常超时，一次抖动就会让
+  // ls-remote 失败并被误判成"仓库不存在"，从而给出完全错误的提示。
+  const repoInfo = await run('gh', ['api', `repos/${OWNER}/${REPO}`, '--jq', '.full_name'], {
+    allowFail: true,
+    capture: true,
+  });
+  if (repoInfo.code !== 0) {
+    console.error(`✗ 无法通过 API 访问仓库 ${OWNER}/${REPO}`);
+    console.error('  若提示 404，请先在浏览器打开 https://github.com/new 创建同名 Public 仓库');
+    console.error('  （不要勾选任何初始化选项），再重新运行本脚本。');
+    console.error(`  原始信息：${repoInfo.out.trim().split('\n').filter(Boolean).pop() || '（无）'}`);
     process.exit(1);
   }
-  console.log(`  ✓ 仓库可访问：${REMOTE_URL}`);
+  console.log(`  ✓ 仓库存在：${repoInfo.out.trim()}`);
+
+  // 再探测一次 git 通道；失败不算致命（可能是网络抖动），后续 push 会重试
+  const probe = await run('git', ['ls-remote', '--heads', REMOTE_URL], { allowFail: true, capture: true });
+  console.log(
+    probe.code === 0
+      ? `  ✓ git 通道正常：${REMOTE_URL}`
+      : '  · git 通道暂不可达（网络抖动），推送时脚本会自动重试'
+  );
 
   /* -------------------- 2. 配置远程并推送 -------------------- */
   const remotes = await run('git', ['remote'], { capture: true });
