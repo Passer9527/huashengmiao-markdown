@@ -395,9 +395,30 @@
 
 /* ============================================================
    四、行级装饰器
+   ============================================================
+   ⚠️ 关于 !important：
+   CodeMirror 的基础主题自带一条 `.ͼ1 .cm-line { padding: 0 2px 0 6px }`，
+   其特异性（0,2,0）高于这里的单类选择器（0,1,0），会静默吃掉我们为
+   标题行、引用行、列表行设置的内边距。因此凡是作用于 .cm-line 的
+   padding 都必须加 !important 才能稳定生效。
+   另外：行间距一律用 padding，绝不能用 margin —— margin 会在行与行之间
+   制造空隙，而 CodeMirror 的高度模型并不包含这段空隙，
+   会造成鼠标点击的坐标换算整体偏移（表现为"点第 2 行光标跳到第 3 行"）。
+   ============================================================
    ============================================================ */
 
 /* ---------- 标题 H1 ~ H6：字号递减、加粗、H1/H2 带下边框 ---------- */
+/* ------------------------------------------------------------------
+ * 【重要】标题行的纵向间距只能用 padding，绝不能用 margin
+ * ------------------------------------------------------------------
+ * CodeMirror 的位置模型假定 .cm-line 之间**首尾相接**：
+ * 它用各行的盒高累加出"第 y 像素对应文档哪个位置"。
+ * 一旦给 .cm-line 加 margin，行与行之间就出现空隙，
+ * 而 CodeMirror 的高度模型中并不包含这段空隙，
+ * 于是鼠标点击的坐标换算会整体向下偏移——实测表现为
+ * 「点击第 2 行却把光标放到第 3 行」。
+ * padding 属于行盒本身，会被高度测量正确纳入，因此是安全的。
+ * ------------------------------------------------------------------ */
 .hsm-line-h1,
 .hsm-line-h2,
 .hsm-line-h3,
@@ -412,37 +433,37 @@
 
 .hsm-line-h1 {
   font-size: 1.9em;
-  margin-top: .7em;
-  padding-bottom: .28em;
+  padding-top: .7em !important;
+  padding-bottom: .28em !important;
   border-bottom: 1px solid var(--ui-border);
 }
 
 .hsm-line-h2 {
   font-size: 1.55em;
-  margin-top: .65em;
-  padding-bottom: .24em;
+  padding-top: .65em !important;
+  padding-bottom: .24em !important;
   border-bottom: 1px solid var(--ui-border);
 }
 
 .hsm-line-h3 {
   font-size: 1.3em;
-  margin-top: .6em;
+  padding-top: .6em !important;
 }
 
 .hsm-line-h4 {
   font-size: 1.14em;
-  margin-top: .55em;
+  padding-top: .55em !important;
 }
 
 .hsm-line-h5 {
   font-size: 1.02em;
-  margin-top: .5em;
+  padding-top: .5em !important;
   color: var(--ui-text-dim);
 }
 
 .hsm-line-h6 {
   font-size: .95em;
-  margin-top: .5em;
+  padding-top: .5em !important;
   color: var(--ui-text-dim);
   letter-spacing: .4px;
 }
@@ -451,7 +472,7 @@
 .hsm-line-quote {
   border-left: 4px solid var(--ui-border-strong);
   background: var(--ui-block-bg);
-  padding-left: 12px;
+  padding-left: 12px !important;
   margin-left: 2px;
   color: var(--ui-text-dim);
   border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0;
@@ -485,12 +506,12 @@
 
 /* ---------- 列表行 ---------- */
 .hsm-line-list {
-  padding-left: 4px;
+  padding-left: 4px !important;
 }
 
 /* 任务列表行 */
 .hsm-line-task {
-  padding-left: 4px;
+  padding-left: 4px !important;
 }
 
 .hsm-line-task.is-done {
@@ -517,7 +538,7 @@
   color: var(--ui-text-dim);
   font-family: var(--editor-code-font);
   font-size: .88em;
-  padding-left: 8px;
+  padding-left: 8px !important;
 }
 
 /* ---------- 表格源码行 ---------- */
@@ -770,114 +791,11 @@
   overflow: hidden;
 }
 
-/* ---------- 代码高亮（highlight.js 主题类，颜色可被代码主题覆盖） ---------- */
-.hsm-codeblock .hljs-comment,
-.hsm-codeblock .hljs-quote {
-  color: var(--ui-text-faint);
-  font-style: italic;
-}
-
-.hsm-codeblock .hljs-keyword,
-.hsm-codeblock .hljs-selector-tag,
-.hsm-codeblock .hljs-literal {
-  color: #cf222e;
-  font-weight: 600;
-}
-
-.hsm-codeblock .hljs-string,
-.hsm-codeblock .hljs-regexp,
-.hsm-codeblock .hljs-addition {
-  color: #0a7b34;
-}
-
-.hsm-codeblock .hljs-number,
-.hsm-codeblock .hljs-symbol,
-.hsm-codeblock .hljs-bullet {
-  color: #0550ae;
-}
-
-.hsm-codeblock .hljs-title,
-.hsm-codeblock .hljs-title.function_,
-.hsm-codeblock .hljs-section {
-  color: #8250df;
-  font-weight: 600;
-}
-
-.hsm-codeblock .hljs-attr,
-.hsm-codeblock .hljs-attribute,
-.hsm-codeblock .hljs-variable,
-.hsm-codeblock .hljs-template-variable {
-  color: #953800;
-}
-
-.hsm-codeblock .hljs-type,
-.hsm-codeblock .hljs-title.class_,
-.hsm-codeblock .hljs-built_in {
-  color: #0550ae;
-  font-weight: 600;
-}
-
-.hsm-codeblock .hljs-meta,
-.hsm-codeblock .hljs-meta .hljs-keyword {
-  color: var(--ui-text-faint);
-}
-
-.hsm-codeblock .hljs-tag,
-.hsm-codeblock .hljs-name,
-.hsm-codeblock .hljs-selector-id,
-.hsm-codeblock .hljs-selector-class {
-  color: #116329;
-}
-
-.hsm-codeblock .hljs-deletion {
-  color: var(--ui-danger);
-}
-
-.hsm-codeblock .hljs-emphasis {
-  font-style: italic;
-}
-
-.hsm-codeblock .hljs-strong {
-  font-weight: 700;
-}
-
-/* 深色模式下的代码配色（浅色变量由外部代码主题覆盖时不冲突） */
-html[data-color-mode="dark"] .hsm-codeblock .hljs-keyword,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-selector-tag,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-literal {
-  color: #ff7b72;
-}
-
-html[data-color-mode="dark"] .hsm-codeblock .hljs-string,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-regexp,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-addition {
-  color: #a5d6ff;
-}
-
-html[data-color-mode="dark"] .hsm-codeblock .hljs-number,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-symbol,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-bullet {
-  color: #79c0ff;
-}
-
-html[data-color-mode="dark"] .hsm-codeblock .hljs-title,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-title.function_,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-section {
-  color: #d2a8ff;
-}
-
-html[data-color-mode="dark"] .hsm-codeblock .hljs-attr,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-attribute,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-variable,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-template-variable {
-  color: #ffa657;
-}
-
-html[data-color-mode="dark"] .hsm-codeblock .hljs-type,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-title.class_,
-html[data-color-mode="dark"] .hsm-codeblock .hljs-built_in {
-  color: #79c0ff;
-}
+/* ------------------------------------------------------------------
+ * 代码块内的语法配色由「设置 → 外观 → 代码高亮主题」动态注入
+ * （见 src/shared/themes.ts 的 buildEditorCodeCss）。
+ * 这里刻意不再写死颜色，否则会覆盖用户选择的主题。
+ * ------------------------------------------------------------------ */
 
 /* ---------- Mermaid 图表 Widget ---------- */
 .hsm-mermaid {

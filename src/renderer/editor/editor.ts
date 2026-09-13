@@ -14,7 +14,9 @@
 
 import {
   EditorState,
+  ChangeSet,
   Compartment,
+  type ChangeSpec,
   type Extension,
   type TransactionSpec,
 } from '@codemirror/state';
@@ -570,6 +572,43 @@ export function applyToc(view: EditorView): boolean {
  * ================================================================== */
 
 /**
+ * 应用一组行级格式变更，并把光标放到符合直觉的位置。
+ *
+ * 背景（这是一个很容易踩的坑）：
+ *   CodeMirror 在映射选区时，游标的关联方向 assoc 默认为 **-1**。
+ *   对于"在光标所在的同一位置插入内容"这种情形（例如在空行行首插入 `# `），
+ *   assoc = -1 会把光标映射到插入内容的**前面**——于是用户按下 Ctrl+1 后，
+ *   看到的是 `|# 标题`（光标停在 # 前面），而不是期望的 `# |标题`。
+ *
+ *   这里显式使用 assoc = 1 重新映射选区，让光标落到插入的前缀之后，
+ *   用户可以直接接着输入标题文字；插入点在光标之后的情形则行为不变。
+ *
+ * @param view 编辑器
+ * @param changes 变更列表
+ * @returns 是否有实际变更
+ */
+function dispatchLineChanges(view: EditorView, changes: ChangeSpec[]): boolean {
+  if (changes.length === 0) return false;
+
+  const state = view.state;
+  const changeSet = ChangeSet.of(changes, state.doc.length);
+  const sel = state.selection.main;
+
+  view.dispatch({
+    changes: changeSet,
+    selection: {
+      // assoc = 1：插入点与光标重合时，光标落到插入内容之后
+      anchor: changeSet.mapPos(sel.anchor, 1),
+      head: changeSet.mapPos(sel.head, 1),
+    },
+    userEvent: 'input.format',
+    scrollIntoView: true,
+  });
+  view.focus();
+  return true;
+}
+
+/**
  * 切换行首前缀
  * 若当前行已有其它同级前缀会自动替换；再次执行同一前缀则取消。
  *
@@ -606,10 +645,7 @@ export function toggleLinePrefix(view: EditorView, prefix: string, matcher: RegE
     }
   }
 
-  if (changes.length === 0) return false;
-  view.dispatch({ changes, userEvent: 'input.format', scrollIntoView: true });
-  view.focus();
-  return true;
+  return dispatchLineChanges(view, changes);
 }
 
 /**
@@ -652,10 +688,7 @@ export function applyOrderedList(view: EditorView): boolean {
     if (n >= state.doc.lineAt(state.selection.main.to).number) break;
   }
 
-  if (changes.length === 0) return false;
-  view.dispatch({ changes, userEvent: 'input.format' });
-  view.focus();
-  return true;
+  return dispatchLineChanges(view, changes);
 }
 
 /** 任务列表 */

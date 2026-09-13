@@ -528,11 +528,34 @@ export const DOC_THEME_MAP = new Map(DOC_THEMES.map((t) => [t.id, t]));
  * ================================================================== */
 
 /** 代码主题定义 */
+/** 代码主题的配色表 */
+export interface CodeThemeColors {
+  bg: string;
+  border: string;
+  text: string;
+  comment: string;
+  keyword: string;
+  string: string;
+  number: string;
+  title: string;
+  builtin: string;
+  literal: string;
+  type: string;
+  attr: string;
+  meta: string;
+  tag: string;
+  deletion: string;
+  addition: string;
+}
+
 export interface CodeThemeDef {
   id: string;
   label: string;
   dark: boolean;
+  /** 导出用样式（作用域为 .hsm-preview） */
   css: string;
+  /** 原始配色，供编辑器内的代码块样式复用 */
+  colors: CodeThemeColors;
 }
 
 /** 生成代码主题 CSS：先给出代码块底色，再逐类定义 token 颜色 */
@@ -540,29 +563,13 @@ function codeTheme(
   id: string,
   label: string,
   dark: boolean,
-  colors: {
-    bg: string;
-    border: string;
-    text: string;
-    comment: string;
-    keyword: string;
-    string: string;
-    number: string;
-    title: string;
-    builtin: string;
-    literal: string;
-    type: string;
-    attr: string;
-    meta: string;
-    tag: string;
-    deletion: string;
-    addition: string;
-  },
+  colors: CodeThemeColors,
 ): CodeThemeDef {
   return {
     id,
     label,
     dark,
+    colors,
     css: `
 .${DOC_ROOT_CLASS} {
   --doc-code-bg: ${colors.bg};
@@ -632,6 +639,72 @@ export const CODE_THEMES: CodeThemeDef[] = [
 
 /** 代码主题 ID -> 定义 */
 export const CODE_THEME_MAP = new Map(CODE_THEMES.map((t) => [t.id, t]));
+
+/**
+ * 生成"编辑器内代码块"使用的代码主题样式
+ *
+ * 背景：主题样式表原本只作用于 `.hsm-preview`（导出 HTML 的根容器），
+ *       而编辑器里的代码块是 `.hsm-codeblock`，两者不在同一个作用域，
+ *       导致用户在设置里切换"代码高亮主题"时，编辑器内的代码块毫无变化。
+ *       这里用同一份配色再生成一份编辑器作用域的样式，两处保持完全一致。
+ *
+ * @param codeThemeId 代码主题 ID
+ */
+export function buildEditorCodeCss(codeThemeId: string): string {
+  const t = CODE_THEME_MAP.get(codeThemeId) ?? CODE_THEMES[0];
+  const c = t.colors;
+
+  return `
+/* ================= 编辑器内代码块（跟随"代码高亮主题"设置）================= */
+.hsm-codeblock {
+  background: ${c.bg};
+  border-color: ${c.border};
+}
+.hsm-codeblock pre {
+  background: transparent;
+}
+.hsm-codeblock code.hljs {
+  color: ${c.text};
+}
+.hsm-codeblock .hljs-comment,
+.hsm-codeblock .hljs-quote { color: ${c.comment}; font-style: italic; }
+.hsm-codeblock .hljs-keyword,
+.hsm-codeblock .hljs-selector-tag,
+.hsm-codeblock .hljs-doctag,
+.hsm-codeblock .hljs-section,
+.hsm-codeblock .hljs-name { color: ${c.keyword}; font-weight: 600; }
+.hsm-codeblock .hljs-string,
+.hsm-codeblock .hljs-regexp,
+.hsm-codeblock .hljs-addition,
+.hsm-codeblock .hljs-template-tag,
+.hsm-codeblock .hljs-template-variable { color: ${c.string}; }
+.hsm-codeblock .hljs-number,
+.hsm-codeblock .hljs-symbol,
+.hsm-codeblock .hljs-bullet { color: ${c.number}; }
+.hsm-codeblock .hljs-title,
+.hsm-codeblock .hljs-title.function_,
+.hsm-codeblock .hljs-title.class_ { color: ${c.title}; }
+.hsm-codeblock .hljs-built_in,
+.hsm-codeblock .hljs-selector-class,
+.hsm-codeblock .hljs-selector-id { color: ${c.builtin}; }
+.hsm-codeblock .hljs-literal,
+.hsm-codeblock .hljs-variable.constant_ { color: ${c.literal}; }
+.hsm-codeblock .hljs-type,
+.hsm-codeblock .hljs-class .hljs-title { color: ${c.type}; }
+.hsm-codeblock .hljs-attr,
+.hsm-codeblock .hljs-attribute,
+.hsm-codeblock .hljs-property { color: ${c.attr}; }
+.hsm-codeblock .hljs-meta,
+.hsm-codeblock .hljs-meta .hljs-keyword { color: ${c.meta}; }
+.hsm-codeblock .hljs-tag { color: ${c.tag}; }
+.hsm-codeblock .hljs-deletion { color: ${c.deletion}; }
+.hsm-codeblock .hljs-emphasis { font-style: italic; }
+.hsm-codeblock .hljs-strong { font-weight: 700; }
+.hsm-codeblock .hljs-link { text-decoration: underline; }
+/* 代码块右上角的语言标签与底色保持对比度 */
+.hsm-codeblock::before { color: ${c.comment}; }
+`;
+}
 
 /**
  * 组装完整的文档样式表

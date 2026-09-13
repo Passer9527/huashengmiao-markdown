@@ -25,7 +25,7 @@ import {
   type CommandDef,
 } from '../../shared/commands';
 import { defaultSettings } from '../../shared/settings-defs';
-import { buildDocumentCss, DOC_ROOT_CLASS, type ThemeDef } from '../../shared/themes';
+import { buildDocumentCss, buildEditorCodeCss, DOC_ROOT_CLASS, type ThemeDef } from '../../shared/themes';
 import type { RecentFile, SettingDef, SettingsMap, ShortcutBinding, WorkspaceInfo } from '../../shared/types';
 import { basename, stem } from '../../shared/path-utils';
 import { toast } from './ui-kit';
@@ -364,6 +364,10 @@ export function applyDocumentTheme(): void {
   --editor-code-font: ${codeFont};
 }
 `;
+
+  // 编辑器里的代码块不在 .hsm-preview 作用域内，需要再补一份编辑器专用样式，
+  // 否则"代码高亮主题"设置只在导出结果里生效、编辑器内毫无变化。
+  css += buildEditorCodeCss(codeThemeId);
 
   docThemeStyle.textContent = css;
 

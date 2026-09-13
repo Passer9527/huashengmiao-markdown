@@ -396,6 +396,217 @@ const CASES = [
     `,
   },
   {
+    name: '点击标题行，光标落在被点击的那一行（回归：行级装饰用了 margin）',
+    body: `
+      await window.__HSM__.run('file.new');
+      await window.__HSM__.wait(300);
+      window.__HSM__.setContent(
+        '# 你好\\n## 你好\\n### 你好\\n' +
+        '\`\`\`python\\nprint(你好)\\na = 10\\nb = a\\nc = "this is demo"\\n\`\`\`\\n'
+      );
+      await window.__HSM__.wait(1200);
+
+      const view = window.__HSM__.getView();
+      const lineEls = [...document.querySelectorAll('.cm-line')];
+
+      /** 在指定坐标派发一次鼠标按下，并记录各阶段的落点 */
+      const clickAt = async (x, y) => {
+        const target = document.elementFromPoint(x, y);
+        if (!target) return null;
+        const readLine = () => {
+          const p = view.state.selection.main.head;
+          return view.state.doc.lineAt(p).number;
+        };
+        const opts = { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0, buttons: 1, view: window, detail: 1 };
+        target.dispatchEvent(new MouseEvent('mousedown', opts));
+        const afterDown = readLine();
+        document.dispatchEvent(new MouseEvent('mouseup', { ...opts, buttons: 0 }));
+        await window.__HSM__.wait(350);
+        const after = readLine();
+        return { line: after, afterDownLine: afterDown, pos: view.state.selection.main.head };
+      };
+
+      const problems = [];
+      const details = [];
+
+      // 逐个标题行：点击它垂直中线的位置，光标必须落在同一行
+      for (let i = 0; i < 3; i += 1) {
+        // 每轮重新查询：装饰重建后旧的 DOM 引用可能已失效
+        const el = document.querySelectorAll('.cm-line')[i];
+        const r = el.getBoundingClientRect();
+        const cx = Math.round(r.left + 20);
+        const cy = Math.round(r.top + r.height / 2);
+        const expectPos = view.posAtCoords({ x: cx, y: cy });
+        const expectLine = expectPos == null ? null : view.state.doc.lineAt(expectPos).number;
+        // CodeMirror 的鼠标定位实际走的是 posAndSideAtCoords，这里一并对照
+        const side = view.posAndSideAtCoords({ x: cx, y: cy }, false);
+        const sideLine = side == null ? null : view.state.doc.lineAt(side.pos).number;
+        const probeEl = document.elementFromPoint(cx, cy);
+        const probeLine = probeEl && probeEl.closest('.cm-line')
+          ? [...document.querySelectorAll('.cm-line')].indexOf(probeEl.closest('.cm-line')) + 1 : -1;
+        const hit = await clickAt(cx, cy);
+        const src = view.state.doc.line(i + 1).text;
+        details.push(\`第\${i + 1}行 \${JSON.stringify(src)} → 光标第\${hit ? hit.line : '?'}行\`);
+        if (!hit) { problems.push(\`第 \${i + 1} 行点击位置没有可点击元素\`); continue; }
+        if (hit.line !== i + 1) {
+          problems.push(
+            '点击第 ' + (i + 1) + ' 行 ' + JSON.stringify(src) + '，光标却落在第 ' + hit.line + ' 行' +
+            '（行盒 ' + Math.round(r.top) + '~' + Math.round(r.bottom) + '，点击 ' + cx + ',' + cy +
+            '，posAtCoords=' + expectLine + ' posAndSide=' + sideLine + ' 命中行元素=' + probeLine + '）',
+          );
+        }
+      }
+
+      // 行与行之间不得留有空隙（空隙会让坐标换算整体偏移）
+      for (let i = 0; i < lineEls.length - 1; i += 1) {
+        const a = lineEls[i].getBoundingClientRect();
+        const b = lineEls[i + 1].getBoundingClientRect();
+        const gap = Math.round((b.top - a.bottom) * 10) / 10;
+        if (Math.abs(gap) > 1.5) problems.push(\`第 \${i + 1} 行与第 \${i + 2} 行之间存在 \${gap}px 空隙\`);
+      }
+      details.push(\`共 \${lineEls.length} 个行元素\`);
+
+      return {
+        pass: problems.length === 0,
+        detail: problems.length ? problems.join('；') + ' || 现场：' + details.join(' | ') : details.join(' | '),
+      };
+    `,
+  },
+  {
+    name: '代码高亮主题在编辑器内实时生效（回归：配色被写死在样式表里）',
+    body: `
+      await window.__HSM__.run('file.new');
+      await window.__HSM__.wait(300);
+      window.__HSM__.setContent('\`\`\`python\\nprint(你好)\\na = 10\\nc = "demo"\\n\`\`\`\\n');
+      await window.__HSM__.wait(1000);
+
+      // 通过真实的设置面板修改「代码块高亮主题」
+      await window.__HSM__.run('file.settings');
+      await window.__HSM__.wait(800);
+      const modal = document.querySelector('.overlay.is-open .modal');
+      if (!modal) return { pass: false, detail: '设置面板未打开' };
+
+      const row = [...modal.querySelectorAll('.settings__row')].find((r) => r.textContent.includes('代码块高亮主题'));
+      if (!row) return { pass: false, detail: '设置面板中未找到「代码块高亮主题」' };
+      const select = row.querySelector('select');
+      if (!select) return { pass: false, detail: '该设置项不是下拉框' };
+
+      /** 切换主题并读取编辑器内代码块的实际配色 */
+      const snap = async (themeId) => {
+        select.value = themeId;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await window.__HSM__.wait(650);
+        const block = document.querySelector('.hsm-codeblock');
+        if (!block) return null;
+        const code = block.querySelector('code');
+        return {
+          bg: getComputedStyle(block).backgroundColor,
+          text: getComputedStyle(code).color,
+        };
+      };
+
+      const results = {};
+      for (const id of ['github', 'dracula', 'monokai', 'one-dark', 'solarized-light']) {
+        results[id] = await snap(id);
+      }
+      // 还原为默认主题，避免影响后续用例
+      select.value = 'github';
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      await window.__HSM__.wait(400);
+      document.querySelector('.overlay.is-open .modal__close')?.click();
+      await window.__HSM__.wait(300);
+
+      const problems = [];
+      const bgs = new Set();
+      for (const [id, r] of Object.entries(results)) {
+        if (!r) { problems.push(\`\${id} 未能取到代码块\`); continue; }
+        bgs.add(r.bg);
+        // 背景不能是透明的，否则代码块与正文糊在一起
+        if (r.bg === 'rgba(0, 0, 0, 0)' || r.bg === 'transparent') problems.push(\`\${id} 的代码块背景是透明的\`);
+      }
+      if (bgs.size !== Object.keys(results).length) {
+        problems.push(\`\${Object.keys(results).length} 个主题只产生了 \${bgs.size} 种背景色，说明部分主题未生效\`);
+      }
+      // 浅色主题必须是浅底，深色主题必须是深底
+      const light = results['github'];
+      const dark = results['dracula'];
+      if (light && dark && light.bg === dark.bg) problems.push('浅色与深色主题的代码块底色相同');
+
+      const detail = Object.entries(results)
+        .map(([id, r]) => id + '=' + (r ? r.bg + '/' + r.text : '未取到'))
+        .join('  ');
+      return { pass: problems.length === 0, detail: problems.length ? problems.join('；') : detail };
+    `,
+  },
+  {
+    name: '行首前缀类快捷键执行后，光标落在前缀之后（回归：assoc 默认 -1）',
+    body: `
+      const view = window.__HSM__.getView();
+
+      /** 在全新空文档上执行命令，返回结果行文本与光标列号 */
+      const runOnEmptyLine = async (commandId) => {
+        await window.__HSM__.run('file.new');
+        await window.__HSM__.wait(250);
+        window.__HSM__.setContent('');
+        await window.__HSM__.wait(250);
+        view.dispatch({ selection: { anchor: 0 } });
+        await window.__HSM__.wait(120);
+        await window.__HSM__.run(commandId);
+        await window.__HSM__.wait(300);
+        const line = view.state.doc.line(1);
+        return { text: line.text, column: view.state.selection.main.head - line.from };
+      };
+
+      const expectations = [
+        ['format.h1', '# ', 2],
+        ['format.h2', '## ', 3],
+        ['format.h3', '### ', 4],
+        ['format.h6', '###### ', 7],
+        ['format.quote', '> ', 2],
+        ['format.bulletList', '- ', 2],
+        ['format.orderedList', '1. ', 3],
+        ['format.taskList', '- [ ] ', 6],
+      ];
+
+      const problems = [];
+      const details = [];
+      for (const [cmd, wantText, wantCol] of expectations) {
+        const got = await runOnEmptyLine(cmd);
+        const okText = got.text === wantText;
+        const okCol = got.column === wantCol;
+        details.push(cmd + ' → ' + JSON.stringify(got.text) + ' 光标列=' + got.column);
+        if (!okText) problems.push(cmd + ' 行内容应为 ' + JSON.stringify(wantText) + '，实际 ' + JSON.stringify(got.text));
+        if (!okCol) problems.push(cmd + ' 光标应在前缀之后（第 ' + wantCol + ' 列），实际第 ' + got.column + ' 列');
+      }
+
+      // 非空行、光标在行首：应插入前缀且光标仍在正文文字之前
+      await window.__HSM__.run('file.new');
+      await window.__HSM__.wait(250);
+      window.__HSM__.setContent('标题文字');
+      await window.__HSM__.wait(300);
+      view.dispatch({ selection: { anchor: 0 } });
+      await window.__HSM__.wait(120);
+      await window.__HSM__.run('format.h1');
+      await window.__HSM__.wait(300);
+      const line = view.state.doc.line(1);
+      const col = view.state.selection.main.head - line.from;
+      details.push('非空行加标题 → ' + JSON.stringify(line.text) + ' 光标列=' + col);
+      if (line.text !== '# 标题文字') problems.push('非空行加标题后内容应为 "# 标题文字"，实际 ' + JSON.stringify(line.text));
+      if (col !== 2) problems.push('非空行加标题后光标应在第 2 列，实际第 ' + col + ' 列');
+
+      // 再次执行应取消前缀，光标回到行首
+      await window.__HSM__.run('format.h1');
+      await window.__HSM__.wait(300);
+      const line2 = view.state.doc.line(1);
+      const col2 = view.state.selection.main.head - line2.from;
+      details.push('再次执行取消标题 → ' + JSON.stringify(line2.text) + ' 光标列=' + col2);
+      if (line2.text !== '标题文字') problems.push('再次执行后应取消前缀，实际 ' + JSON.stringify(line2.text));
+      if (col2 !== 0) problems.push('取消前缀后光标应在行首，实际第 ' + col2 + ' 列');
+
+      return { pass: problems.length === 0, detail: problems.length ? problems.join('；') : details.join(' | ') };
+    `,
+  },
+  {
     name: '光标可见性：每一行都能被测量并绘制光标（回归：br 被 CSS 隐藏）',
     body: `
       await window.__HSM__.run('file.new');
