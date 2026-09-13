@@ -61,6 +61,36 @@ function run(command, args, options = {}) {
 }
 
 /**
+ * 带重试的 git push。
+ *
+ * 国内网络访问 github.com 时，HTTPS 长连接偶发被中断
+ * （典型报错：GnuTLS recv error (-110): The TLS connection was non-properly terminated），
+ * 这属于网络抖动而非权限或历史问题——重新推送通常立刻成功。
+ * 因此这里最多重试 4 次，每次间隔递增，并在日志里说明重试原因。
+ *
+ * @param {string[]} args 传给 git 的参数（需以 push 开头）
+ */
+async function gitPush(args) {
+  const MAX = 4;
+  for (let attempt = 1; attempt <= MAX; attempt += 1) {
+    const result = await run('git', args, { allowFail: true, capture: true });
+    process.stdout.write(result.out);
+    if (result.code === 0) return;
+
+    // 权限类错误重试没有意义，直接抛出，避免浪费用户时间
+    if (/denied|403|Authentication failed|Permission to/i.test(result.out)) {
+      throw new Error(result.out.trim().split('\n').filter(Boolean).pop());
+    }
+    if (attempt === MAX) {
+      throw new Error(`git push 连续 ${MAX} 次失败：${result.out.trim().split('\n').filter(Boolean).pop()}`);
+    }
+    const waitMs = attempt * 3000;
+    console.log(`  · 推送失败（第 ${attempt}/${MAX} 次），疑似网络抖动，${waitMs / 1000} 秒后重试…`);
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+}
+
+/**
  * 把某个 git 命令的输出按行拆成非空数组
  * @param {string} text 命令输出
  * @returns {string[]} 去掉空行与首尾空白后的结果
@@ -98,7 +128,7 @@ async function pushSource() {
 
   // 远程还没有 main 分支：首次推送
   if (hasRemote.code !== 0) {
-    await run('git', ['push', '-u', 'origin', 'main']);
+    await gitPush(['push', '-u', 'origin', 'main']);
     return;
   }
 
@@ -108,7 +138,7 @@ async function pushSource() {
     capture: true,
   });
   if (fastForward.code === 0) {
-    await run('git', ['push', '-u', 'origin', 'main']);
+    await gitPush(['push', '-u', 'origin', 'main']);
     return;
   }
 
@@ -136,7 +166,7 @@ async function pushSource() {
   }
 
   console.log('  · 这些提交不携带任何文件（空历史），改用 --force-with-lease 安全覆盖');
-  await run('git', ['push', '--force-with-lease', '-u', 'origin', 'main']);
+  await gitPush(['push', '--force-with-lease', '-u', 'origin', 'main']);
 }
 
 /**
