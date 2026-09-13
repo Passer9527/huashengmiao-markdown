@@ -1,0 +1,577 @@
+/**
+ * 花生苗 Markdown 编辑器 —— 基础层（base.css）
+ * ------------------------------------------------------------------
+ * 内容：
+ *   1. 设计变量：浅色 / 深色两套完整配色与尺寸，深色通过
+ *      html[data-color-mode="dark"] 覆盖（无该属性或为 light 时用浅色）；
+ *   2. 全局重置（reset）：盒模型、边距、表单元素、按钮；
+ *   3. 字体与中文排版基线；
+ *   4. 滚动条统一美化（8px 宽、圆角、hover 变色）；
+ *   5. 通用工具类与状态类（.is-hidden / .empty-hint 等）。
+ *
+ * 作者：何飞    联系方式：微信 6731663
+ * 开源协议：MIT
+ */
+
+/* ============================================================
+   一、浅色主题变量（默认）
+   ============================================================ */
+:root {
+  /* ---------- 尺寸令牌（会被 JS 读取/改写） ---------- */
+  --titlebar-height: 36px;   /* 顶部标题栏高度 */
+  --toolbar-height: 38px;    /* 格式工具栏高度 */
+  --menubar-height: 28px;    /* 菜单栏下拉项高度基准 */
+  --statusbar-height: 26px;  /* 底部状态栏高度 */
+  --tabbar-height: 34px;     /* 标签栏高度 */
+  --sidebar-width: 240px;    /* 侧边栏宽度，JS 拖拽时动态改写 */
+  --sidebar-min-width: 160px;
+  --sidebar-max-width: 560px;
+  --radius: 6px;             /* 圆角基准 */
+
+  /* ---------- UI 必需变量（浅色） ---------- */
+  --ui-bg: #ffffff;                  /* 主背景（编辑区、内容面） */
+  --ui-bg-alt: #f6f7f8;              /* 次级背景（侧边栏、工具栏、状态栏） */
+  --ui-bg-elevated: #ffffff;         /* 浮层背景（菜单、模态框、卡片） */
+  --ui-bg-hover: rgba(0, 0, 0, .05); /* 悬停底色 */
+  --ui-bg-active: rgba(34, 160, 107, .13); /* 激活/选中底色 */
+  --ui-text: #24292f;                /* 主文字 */
+  --ui-text-dim: #57606a;            /* 次要文字 */
+  --ui-text-faint: #8b949e;          /* 弱化文字（占位、辅助信息） */
+  --ui-border: #e3e6e8;              /* 常规描边 */
+  --ui-border-strong: #cfd4d9;       /* 强描边（输入框、分隔线） */
+  --ui-accent: #22a06b;              /* 品牌强调色：花生苗绿 */
+  --ui-accent-hover: #1b8b5b;        /* 强调色悬停 */
+  --ui-accent-soft: rgba(34, 160, 107, .12); /* 强调色柔和底 */
+  --ui-danger: #d1242f;              /* 危险 / 错误 */
+  --ui-warning: #bf8700;             /* 警告 */
+  --ui-success: #1a7f37;             /* 成功 */
+  --ui-shadow: 0 1px 3px rgba(27, 31, 36, .12), 0 1px 2px rgba(27, 31, 36, .06);
+  --ui-shadow-lg: 0 8px 24px rgba(27, 31, 36, .16), 0 2px 6px rgba(27, 31, 36, .08);
+  --ui-titlebar-bg: #f6f7f8;
+  --ui-toolbar-bg: #f6f7f8;
+  --ui-statusbar-bg: #f6f7f8;
+  --ui-sidebar-bg: #f6f7f8;
+  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC",
+    "Hiragino Sans GB", "WenQuanYi Micro Hei", Roboto, Helvetica, Arial, sans-serif;
+  --ui-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "SFMono-Regular",
+    Consolas, "Liberation Mono", Menlo, "Courier New", monospace;
+  --ui-radius: var(--radius);
+  --ui-radius-sm: 4px;
+
+  /* ---------- 派生语义变量（浅色） ---------- */
+  --ui-danger-soft: rgba(209, 36, 47, .12);
+  --ui-warning-soft: rgba(191, 135, 0, .14);
+  --ui-success-soft: rgba(26, 127, 55, .12);
+  --ui-info-soft: rgba(9, 105, 218, .12);
+  --ui-info: #0969da;
+  --ui-mask: rgba(17, 22, 28, .38);         /* 模态遮罩 */
+  --ui-scrollbar: rgba(0, 0, 0, .18);
+  --ui-scrollbar-hover: rgba(0, 0, 0, .34);
+  --ui-mark: rgba(255, 212, 0, .42);        /* ==高亮== 底色 */
+  --ui-code-bg: rgba(27, 31, 36, .055);     /* 行内代码底色 */
+  --ui-block-bg: rgba(27, 31, 36, .035);    /* 代码块/引用块底色 */
+  --ui-selection: rgba(34, 160, 107, .22);  /* 编辑器选区 */
+
+  /* ---------- 编辑器排版默认值（JS 会把用户设置写到 .editor-inner 行内样式） ---------- */
+  --editor-font-size: 16px;
+  --editor-line-height: 1.7;
+  --editor-page-width: 800px;   /* 正文最大宽度 */
+  --editor-font: var(--ui-font);
+  --editor-code-font: var(--ui-font-mono);
+  --editor-padding-x: 60px;     /* 正文左右留白 */
+  --editor-padding-y: 48px;     /* 正文上下留白 */
+
+  /* ---------- 动效 ---------- */
+  --ui-ease: cubic-bezier(.4, 0, .2, 1);
+  --ui-dur: 120ms;              /* 统一过渡时长，克制、干脆 */
+}
+
+/* ============================================================
+   二、深色主题变量
+   切换方式：document.documentElement.dataset.colorMode = 'dark'
+   ============================================================ */
+html[data-color-mode="dark"] {
+  --ui-bg: #1e2227;
+  --ui-bg-alt: #191c21;
+  --ui-bg-elevated: #24292f;
+  --ui-bg-hover: rgba(255, 255, 255, .07);
+  --ui-bg-active: rgba(61, 220, 151, .16);
+  --ui-text: #dfe3e8;
+  --ui-text-dim: #9aa4af;
+  --ui-text-faint: #6e7781;
+  --ui-border: #2f353c;
+  --ui-border-strong: #3d444d;
+  --ui-accent: #3ddc97;              /* 深色下更亮的苗绿 */
+  --ui-accent-hover: #5ee6ab;
+  --ui-accent-soft: rgba(61, 220, 151, .16);
+  --ui-danger: #f85149;
+  --ui-warning: #d29922;
+  --ui-success: #3fb950;
+  --ui-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+  --ui-shadow-lg: 0 10px 30px rgba(0, 0, 0, .6), 0 2px 8px rgba(0, 0, 0, .4);
+  --ui-titlebar-bg: #191c21;
+  --ui-toolbar-bg: #191c21;
+  --ui-statusbar-bg: #191c21;
+  --ui-sidebar-bg: #191c21;
+
+  --ui-danger-soft: rgba(248, 81, 73, .16);
+  --ui-warning-soft: rgba(210, 153, 34, .18);
+  --ui-success-soft: rgba(63, 185, 80, .16);
+  --ui-info-soft: rgba(88, 166, 255, .16);
+  --ui-info: #58a6ff;
+  --ui-mask: rgba(0, 0, 0, .55);
+  --ui-scrollbar: rgba(255, 255, 255, .16);
+  --ui-scrollbar-hover: rgba(255, 255, 255, .3);
+  --ui-mark: rgba(210, 153, 34, .32);
+  --ui-code-bg: rgba(255, 255, 255, .08);
+  --ui-block-bg: rgba(255, 255, 255, .045);
+  --ui-selection: rgba(61, 220, 151, .26);
+
+  /* 与主题无关的令牌在深色下显式重申，保证两套声明同样完整可读 */
+  --ui-font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC",
+    "Hiragino Sans GB", "WenQuanYi Micro Hei", Roboto, Helvetica, Arial, sans-serif;
+  --ui-font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", "SFMono-Regular",
+    Consolas, "Liberation Mono", Menlo, "Courier New", monospace;
+  --ui-radius: var(--radius);
+  --ui-radius-sm: 4px;
+  --ui-dur: 120ms;
+  --ui-ease: cubic-bezier(.4, 0, .2, 1);
+
+  color-scheme: dark;
+}
+
+/* 浅色模式下告知浏览器原生控件（滚动条、复选框）使用亮色方案 */
+html:not([data-color-mode="dark"]) {
+  color-scheme: light;
+}
+
+/* ============================================================
+   三、全局重置
+   ============================================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ------------------------------------------------------------------
+ * 【重要】让 HTML 的 hidden 属性真正生效
+ * ------------------------------------------------------------------
+ * 浏览器默认样式里 [hidden] 只是 `display: none`，任何设置了 display 的
+ * 类选择器（例如 `.findbar { display: flex }`）都会把它覆盖掉，
+ * 导致 `element.hidden = true` 完全失效——元素依然显示。
+ *
+ * 本项目的查找条、替换行、状态栏、标签栏等都依赖 hidden 属性来控制显隐，
+ * 因此这里用 !important 明确其最高优先级，避免再出现"关不掉的浮层"。
+ * ------------------------------------------------------------------ */
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* 桌面应用禁止页面整体滚动与橡皮筋效果，滚动只发生在内部容器 */
+  overflow: hidden;
+  font-size: 14px;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  overflow: hidden;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-family: var(--ui-font);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  -webkit-user-select: none;   /* 桌面应用外壳默认不可选中，编辑区单独放开 */
+  user-select: none;
+  cursor: default;
+}
+
+/* 标题类元素去除默认外边距与字重差异 */
+h1, h2, h3, h4, h5, h6, p, figure, blockquote, dl, dd {
+  margin: 0;
+}
+
+ul, ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+a {
+  color: var(--ui-accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+svg {
+  flex: none;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--ui-border);
+  margin: 0;
+}
+
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* ---------- 表单元素：统一继承字体与配色 ---------- */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  margin: 0;
+}
+
+button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: default;
+  color: inherit;
+  font: inherit;
+  -webkit-app-region: no-drag; /* 所有按钮都不参与窗口拖拽 */
+}
+
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--ui-accent);
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  flex: none;
+  cursor: default;
+}
+
+/* 去除 Chromium 对 search 类型输入框的自绘清除按钮（自定义更统一） */
+input[type="search"]::-webkit-search-decoration,
+input[type="search"]::-webkit-search-cancel-button,
+input[type="search"]::-webkit-search-results-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* 统一占位符颜色 */
+::placeholder {
+  color: var(--ui-text-faint);
+  opacity: 1;
+}
+
+/* 焦点可见性：只在键盘操作时显示，避免鼠标点击出现描边 */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 1px;
+  border-radius: var(--ui-radius-sm);
+}
+
+/* 允许选中的文本区域 */
+.selectable,
+.cm-editor,
+.hsm-preview,
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ============================================================
+   四、滚动条统一美化（8px 宽 / 圆角 / hover 变色）
+   ============================================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--ui-scrollbar);
+  border-radius: 4px;
+  border: 2px solid transparent; /* 用透明边框制造内缩效果 */
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ui-scrollbar-hover);
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* 窄滚动条变体：用于标签栏、工具栏等紧凑区域 */
+.scrollbar-thin::-webkit-scrollbar {
+  height: 4px;
+  width: 4px;
+}
+
+/* ============================================================
+   五、应用根容器与通用工具类
+   ============================================================ */
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--ui-bg);
+  color: var(--ui-text);
+}
+
+/* 通用隐藏类：JS 用 classList 切换，必须最高优先级 */
+.is-hidden {
+  display: none !important;
+}
+
+/* 视觉上隐藏但保留可访问性（屏幕阅读器可读） */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 单行省略 */
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* 多行省略（默认两行） */
+.clamp2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 横向滚动容器（隐藏滚动条但可滚动） */
+.hscroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* 空列表占位文字：居中灰色小字 */
+.empty-hint {
+  display: block;
+  padding: 22px 12px;
+  text-align: center;
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  line-height: 1.7;
+  -webkit-user-select: none;
+  user-select: none;
+  white-space: pre-line;
+}
+
+/* 内容区块分隔线 */
+.divider {
+  height: 1px;
+  background: var(--ui-border);
+  margin: 8px 0;
+}
+
+/* 竖排分隔线（工具栏/状态栏用） */
+.divider-v {
+  width: 1px;
+  align-self: stretch;
+  background: var(--ui-border);
+  margin: 6px 4px;
+}
+
+/* 键盘按键样式（快捷键提示、帮助面板通用） */
+kbd {
+  display: inline-block;
+  min-width: 18px;
+  padding: 1px 5px;
+  border: 1px solid var(--ui-border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text-dim);
+  font-family: var(--ui-font-mono);
+  font-size: 11px;
+  line-height: 16px;
+  text-align: center;
+  white-space: nowrap;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 徽标（数量标记） */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.badge--danger {
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+}
+
+/* 文字色调工具类 */
+.text-dim {
+  color: var(--ui-text-dim);
+}
+
+.text-faint {
+  color: var(--ui-text-faint);
+}
+
+.text-accent {
+  color: var(--ui-accent);
+}
+
+.text-danger {
+  color: var(--ui-danger);
+}
+
+/* 语义色块：轻提示条（如外部修改提醒、错误提示） */
+.callout {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 8px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-info-soft);
+  color: var(--ui-text);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.callout--warning {
+  background: var(--ui-warning-soft);
+}
+
+.callout--danger {
+  background: var(--ui-danger-soft);
+}
+
+.callout--success {
+  background: var(--ui-success-soft);
+}
+
+/* 加载中占位（骨架屏微光） */
+.is-loading {
+  position: relative;
+  color: transparent !important;
+  background: linear-gradient(
+    90deg,
+    var(--ui-bg-hover) 25%,
+    var(--ui-bg-active) 37%,
+    var(--ui-bg-hover) 63%
+  );
+  background-size: 400% 100%;
+  animation: hsm-shimmer 1.2s ease-in-out infinite;
+  border-radius: var(--ui-radius-sm);
+}
+
+@keyframes hsm-shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+/* 忙碌光标（长任务期间挂到 body 上） */
+.is-busy,
+.is-busy * {
+  cursor: progress !important;
+}
+
+/* 拖拽文件进入窗口时的整体高亮提示 */
+.app.is-dropping::after {
+  content: "松开鼠标即可导入文件";
+  position: absolute;
+  inset: 8px;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--ui-accent);
+  border-radius: 10px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 15px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* 用户偏好减少动效时，关闭所有动画（无障碍） */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}

@@ -1,0 +1,518 @@
+/**
+ * 花生苗 Markdown 编辑器 —— 窄窗口适配（responsive.css）
+ * ------------------------------------------------------------------
+ * 本文件必须最后加载，才能覆盖前面各层的固定尺寸。
+ *
+ * 断点约定：
+ *   ≤ 1180px  工具栏与标签页收紧，正文左右留白减小
+ *   ≤ 900px   自动收起侧边栏（浮于内容之上），标题栏精简
+ *   ≤ 720px   隐藏菜单栏文字、状态栏精简，模态框与设置面板改为单栏
+ *   ≤ 560px   极小窗口兜底（按钮更小、欢迎页卡片单列）
+ *
+ * 说明：窄窗口下侧边栏改为绝对定位浮层，由根元素 .app.is-sidebar-hidden
+ *       控制显隐（JS 在窗口尺寸变化时自动切换该类）。
+ *
+ * 作者：何飞    联系方式：微信 6731663
+ * 开源协议：MIT
+ */
+
+/* ============================================================
+   一、中等窗口（≤ 1180px）：收紧留白与工具密度
+   ============================================================ */
+@media (max-width: 1180px) {
+  .editor-inner {
+    --editor-padding-x: 40px;
+  }
+
+  .tab {
+    max-width: 180px;
+    min-width: 96px;
+  }
+
+  .titlebar__filename {
+    max-width: 32vw;
+  }
+
+  .settings__item-label {
+    width: 124px;
+  }
+
+  .shortcut__name {
+    flex-basis: 48%;
+  }
+}
+
+/* ============================================================
+   二、窄窗口（≤ 900px）：侧边栏自动收起为浮层
+   ============================================================ */
+@media (max-width: 900px) {
+  /* 侧边栏脱离文档流，浮在编辑区上方 */
+  .sidebar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 60;
+    width: var(--sidebar-width);
+    box-shadow: var(--ui-shadow-lg);
+  }
+
+  /* 隐藏状态：整体移出可视区 */
+  .app.is-sidebar-hidden .sidebar {
+    width: 0;
+    opacity: 0;
+    pointer-events: none;
+    box-shadow: none;
+    transform: translateX(-8px);
+  }
+
+  /* 浮层模式下拖拽把手没有意义，隐藏 */
+  .resizer {
+    display: none;
+  }
+
+  /* 工具栏允许换行滚动，避免按钮被裁掉 */
+  .toolbar {
+    padding: 0 6px;
+    gap: 2px;
+  }
+
+  .toolbar__sep {
+    margin: 0 3px;
+  }
+
+  /* 标题栏精简：隐藏品牌名，给菜单与文件名留空间 */
+  .titlebar__appname {
+    display: none;
+  }
+
+  .titlebar__left {
+    gap: 6px;
+  }
+
+  .titlebar__center {
+    padding: 0 6px;
+  }
+
+  .titlebar__filename {
+    max-width: 26vw;
+  }
+
+  /* 正文留白进一步减小 */
+  .editor-inner {
+    --editor-padding-x: 28px;
+    --editor-padding-y: 32px;
+  }
+
+  /* 状态栏只保留关键信息 */
+  .statusbar__center {
+    display: none;
+  }
+
+  #st-stats,
+  #st-eol,
+  #st-lang {
+    display: none;
+  }
+
+  /* 模态框与设置面板留白收紧 */
+  .overlay {
+    padding: 18px 12px;
+  }
+
+  .modal {
+    max-width: 100%;
+    max-height: 86vh;
+  }
+
+  /* 欢迎页卡片改为自适应宽度 */
+  .welcome__grid {
+    grid-template-columns: repeat(auto-fit, minmax(140px, 190px));
+    justify-content: center;
+  }
+}
+
+/* ============================================================
+   三、小窗口（≤ 720px）：单栏布局与更激进的精简
+   ============================================================ */
+@media (max-width: 720px) {
+  /* 菜单栏只留图标感：缩小字号与内边距 */
+  .menubar__item {
+    padding: 0 6px;
+    font-size: 11.5px;
+  }
+
+  .titlebar__appname {
+    display: none;
+  }
+
+  /* 窗口控制按钮变窄 */
+  .wincontrols__btn {
+    width: 36px;
+  }
+
+  /* 标签页更紧凑 */
+  .tab {
+    min-width: 84px;
+    max-width: 140px;
+    font-size: 12px;
+  }
+
+  /* 侧边栏默认宽度收窄 */
+  :root {
+    --sidebar-width: 220px;
+  }
+
+  /* 工具栏按钮变小 */
+  .toolbtn {
+    min-width: 24px;
+    height: 24px;
+    padding: 0 4px;
+    font-size: 12px;
+  }
+
+  /* 状态栏只保留保存状态与模式按钮 */
+  #st-cursor,
+  #st-encoding {
+    display: none;
+  }
+
+  .statusbar {
+    padding: 0 5px;
+  }
+
+  /* 设置面板改为上下结构：导航横向排布 */
+  .settings {
+    flex-direction: column;
+  }
+
+  .settings__nav {
+    flex-direction: row;
+    width: 100%;
+    height: auto;
+    max-height: 76px;
+    padding: 4px;
+    border-right: none;
+    border-bottom: 1px solid var(--ui-border);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .settings__navgroup {
+    display: none;   /* 横排时分组标题占位太多，隐藏 */
+  }
+
+  .settings__navitem {
+    width: auto;
+    flex: none;
+    height: 26px;
+    padding: 0 9px;
+  }
+
+  .settings__content {
+    width: 100%;
+  }
+
+  /* 设置项改为上下两行 */
+  .settings__item {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+
+  .settings__item-label {
+    width: auto;
+    text-align: left;
+  }
+
+  /* 快捷键面板：名称与按键上下排列 */
+  .shortcut {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .shortcut__name {
+    flex: 1 1 100%;
+  }
+
+  .shortcut__desc {
+    flex: 1 1 auto;
+  }
+
+  .shortcut__key {
+    min-width: 82px;
+  }
+
+  /* 快速打开占满宽度 */
+  .quickopen {
+    width: 94vw;
+    top: 10vh;
+    max-height: 70vh;
+  }
+
+  .quickopen__item-path {
+    display: none;
+  }
+
+  /* 模态框铺满可视区 */
+  .modal {
+    max-width: 100%;
+    border-radius: 6px;
+  }
+
+  .modal__head {
+    height: 38px;
+    padding: 0 8px 0 12px;
+  }
+
+  .modal__body {
+    padding: 12px;
+  }
+
+  .modal__foot {
+    padding: 9px 12px;
+  }
+
+  /* Toast 铺满底部 */
+  .toast-root {
+    right: 8px;
+    left: 8px;
+    max-width: none;
+    align-items: stretch;
+  }
+
+  .toast {
+    max-width: none;
+  }
+
+  /* 查找条铺满编辑区顶部 */
+  .findbar {
+    left: 8px;
+    right: 8px;
+    top: 6px;
+  }
+
+  .findbar__options {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+}
+
+/* ============================================================
+   四、极小窗口（≤ 560px）：兜底布局
+   ============================================================ */
+@media (max-width: 560px) {
+  .titlebar__filename {
+    max-width: 34vw;
+  }
+
+  /* 侧边栏浮层占大部分宽度 */
+  .sidebar {
+    width: min(86vw, var(--sidebar-width));
+  }
+
+  /* 窗口控制按钮只留关闭 */
+  #win-min,
+  #win-max {
+    display: none;
+  }
+
+  /* 工具栏只保留图标类按钮，隐藏文字按钮宽度 */
+  .toolbtn {
+    padding: 0 3px;
+  }
+
+  /* 欢迎页卡片单列 */
+  .welcome__grid {
+    grid-template-columns: minmax(150px, 240px);
+  }
+
+  .welcome__logo {
+    font-size: 38px;
+  }
+
+  .welcome__title {
+    font-size: 18px;
+    text-align: center;
+  }
+
+  .welcome__author {
+    text-align: center;
+  }
+
+  /* 状态栏只留一个保存指示 */
+  #st-mode,
+  #st-theme {
+    display: none;
+  }
+
+  /* 表单行改为上下结构（模态框内的链接/图片对话框） */
+  .formrow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 5px;
+  }
+
+  .formrow__label {
+    width: auto;
+    text-align: left;
+  }
+
+  /* 右键菜单限制宽度，避免超出窗口 */
+  .contextmenu {
+    max-width: calc(100vw - 16px);
+  }
+
+  /* 表格浮动工具条允许横向滚动 */
+  .tablebar {
+    max-width: calc(100vw - 16px);
+    overflow-x: auto;
+  }
+}
+
+/* ============================================================
+   五、横屏矮窗口（高度不足）：压缩纵向留白
+   ============================================================ */
+@media (max-height: 560px) {
+  .editor-inner {
+    --editor-padding-y: 20px;
+  }
+
+  .welcome {
+    justify-content: flex-start;
+    padding-top: 20px;
+  }
+
+  .welcome__logo {
+    font-size: 32px;
+  }
+
+  .welcome__slogan {
+    margin-bottom: 12px;
+  }
+
+  .modal {
+    max-height: 92vh;
+  }
+}
+
+/* ============================================================
+   六、高对比度与强制颜色（无障碍兜底）
+   ============================================================ */
+@media (forced-colors: active) {
+  .btn,
+  .iconbtn,
+  .toolbtn,
+  .input,
+  .tab,
+  .tree-item,
+  .outline-item {
+    border: 1px solid CanvasText;
+  }
+
+  .tab.is-active,
+  .tree-item.is-selected,
+  .outline-item.is-active {
+    outline: 2px solid Highlight;
+  }
+}
+
+/* ============================================================
+   七、面板类浮层在窄窗口下的适配（设置 / 快捷键 / 关于 / 导出 / 历史）
+   ============================================================ */
+@media (max-width: 760px) {
+  /* 设置项改为上下两行，标签占满宽度 */
+  .settings__row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .settings__label {
+    width: auto;
+    padding-top: 0;
+  }
+
+  .settings__control .input,
+  .settings__control select.input {
+    max-width: none;
+  }
+
+  /* 主题色板改为两列 */
+  .theme-list {
+    grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  }
+
+  /* 导出格式卡片一列 */
+  .export-formats {
+    grid-template-columns: 1fr;
+  }
+
+  /* 快捷键行改为两行排布 */
+  .shortcut-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .shortcut-row__name {
+    flex: 1 1 100%;
+  }
+
+  .shortcut-row__key {
+    min-width: 88px;
+  }
+
+  /* 版本历史改为上下结构 */
+  .version {
+    flex-direction: column;
+    height: min(64vh, 560px);
+  }
+
+  .version__side {
+    width: 100%;
+    max-height: 180px;
+  }
+
+  /* 关于表头标签列收窄 */
+  .about__label {
+    width: 96px;
+  }
+
+  /* 语法速查表允许横向滚动 */
+  .cheatsheet-wrap {
+    overflow-x: auto;
+  }
+
+  .cheatsheet {
+    min-width: 460px;
+  }
+
+  /* 表格浮动工具条在窄屏下贴右上角，避免遮挡内容 */
+  .table-toolbar {
+    right: 2px;
+    top: 2px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* 设置右侧内容留白收紧 */
+  .settings__panel {
+    padding: 10px 12px 20px;
+  }
+
+  .shortcut-toolbar {
+    flex-wrap: wrap;
+  }
+
+  .shortcut-list {
+    max-height: 40vh;
+  }
+
+  .about__logo {
+    font-size: 34px;
+  }
+
+  .about__value {
+    font-size: 11px;
+  }
+}

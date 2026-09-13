@@ -1,0 +1,1420 @@
+/**
+ * 花生苗 Markdown 编辑器 —— 界面组件层（ui.css）
+ * ------------------------------------------------------------------
+ * 内容：
+ *   1. 标签页 .tabs / .tab（横向滚动、活动下边框、未保存圆点、hover 关闭按钮）
+ *   2. 文件树 .filetree / .tree-item（层级缩进、三角展开箭头、hover/选中态）
+ *   3. 大纲 .outline / .outline-item
+ *   4. 最近文件 .recent / .recent-item（含已失效文件的 .is-missing）
+ *   5. 全局搜索结果 .searchresults / .searchresult
+ *   6. 按钮体系：.btn / .iconbtn / .linkbtn / .wcard 之外的补充
+ *   7. 输入控件：.input / .checkline / .searchbox
+ *   8. 提示条 Toast（右侧滑入 + 自动淡出）
+ *
+ * 作者：何飞    联系方式：微信 6731663
+ * 开源协议：MIT
+ */
+
+/* ============================================================
+   一、标签页
+   ============================================================ */
+.tabs {
+  display: flex;
+  align-items: stretch;
+  flex: none;
+  height: var(--tabbar-height);
+  background: var(--ui-bg-alt);
+  border-bottom: 1px solid var(--ui-border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-user-select: none;
+  user-select: none;
+  z-index: 10;
+}
+
+.tabs::-webkit-scrollbar {
+  height: 0;
+}
+
+/* 单个标签 */
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  max-width: 220px;
+  min-width: 108px;
+  height: 100%;
+  padding: 0 6px 0 10px;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 2px solid transparent;
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease),
+    border-color var(--ui-dur) var(--ui-ease);
+}
+
+.tab:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+/* 活动标签：强调色下边框 + 内容面底色 */
+.tab.is-active {
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  border-bottom-color: var(--ui-accent);
+}
+
+/* 拖拽排序中的标签 */
+.tab.is-dragging {
+  opacity: .5;
+}
+
+.tab.is-drop-target {
+  box-shadow: inset 2px 0 0 var(--ui-accent);
+}
+
+.tab__icon {
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  opacity: .85;
+}
+
+.tab__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 未保存标记：小圆点 */
+.tab__dirty {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+
+/* 关闭按钮：默认隐藏，hover / 激活时出现 */
+.tab__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity var(--ui-dur) var(--ui-ease), background var(--ui-dur) var(--ui-ease),
+    color var(--ui-dur) var(--ui-ease);
+}
+
+.tab:hover .tab__close,
+.tab.is-active .tab__close {
+  opacity: 1;
+}
+
+.tab__close:hover {
+  background: var(--ui-bg-active);
+  color: var(--ui-accent);
+}
+
+/* 有未保存更改时，hover 到关闭按钮上临时隐藏圆点，露出关闭按钮 */
+.tab:hover .tab__dirty {
+  opacity: .35;
+}
+
+/* 标签栏右侧的新建按钮（若 JS 生成） */
+.tabs__new {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 100%;
+  color: var(--ui-text-faint);
+  font-size: 14px;
+}
+
+.tabs__new:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-accent);
+}
+
+/* ============================================================
+   二、文件树
+   ============================================================ */
+.filetree {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0 10px;
+  overflow: auto;
+  font-size: 12.5px;
+}
+
+/* 树条目（文件与文件夹共用） */
+.tree-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding-right: 6px;
+  color: var(--ui-text-dim);
+  white-space: nowrap;
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.tree-item:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+/* 选中态（文件被打开） */
+.tree-item.is-selected {
+  background: var(--ui-bg-active);
+  color: var(--ui-accent);
+}
+
+/* 选中态左侧强调竖条 */
+.tree-item.is-selected::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ui-accent);
+}
+
+/* 键盘焦点 */
+.tree-item.is-focused {
+  outline: 1px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+
+/* 名称区域 */
+.tree-item__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 条目图标 */
+.tree-item__icon {
+  flex: none;
+  width: 15px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1;
+  opacity: .9;
+}
+
+/* 展开箭头占位（无子项的文件夹保留同宽占位，保证对齐） */
+.tree-item__arrow {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  position: relative;
+  opacity: .75;
+}
+
+/* 用 CSS 三角形绘制展开箭头：默认朝右（折叠） */
+.tree-item__arrow::before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  width: 0;
+  height: 0;
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid var(--ui-text-faint);
+  transition: transform var(--ui-dur) var(--ui-ease), border-left-color var(--ui-dur) var(--ui-ease);
+  transform-origin: 25% 50%;
+}
+
+/* 文件夹展开：箭头朝下 */
+.tree-item--dir.is-expanded > .tree-item__arrow::before,
+.tree-item.is-expanded > .tree-item__arrow::before {
+  transform: rotate(90deg);
+  border-left-color: var(--ui-text-dim);
+}
+
+.tree-item:hover > .tree-item__arrow::before {
+  border-left-color: var(--ui-accent);
+}
+
+/* 文件夹强调色略深 */
+.tree-item--dir {
+  color: var(--ui-text);
+  font-weight: 500;
+}
+
+/* 文件条目 */
+.tree-item--file {
+  color: var(--ui-text-dim);
+}
+
+/* 未保存的树节点（新建但未落盘） */
+.tree-item.is-untracked .tree-item__label {
+  font-style: italic;
+}
+
+/* 层级缩进由 JS 写入 --tree-depth，这里统一换算 */
+.tree-item {
+  padding-left: calc(8px + var(--tree-depth, 0) * 14px);
+}
+
+/* 新建 / 重命名时树内联输入框 */
+.tree-item__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 20px;
+  padding: 0 4px;
+  border: 1px solid var(--ui-accent);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-size: 12.5px;
+  outline: none;
+}
+
+/* 树被拖放时的目标高亮 */
+.tree-item.is-drop-target {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-accent);
+}
+
+/* ============================================================
+   三、大纲
+   ============================================================ */
+.outline {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0 10px;
+  overflow: auto;
+  font-size: 12.5px;
+}
+
+.outline-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 3px 8px 3px calc(10px + var(--outline-depth, 0) * 14px);
+  color: var(--ui-text-dim);
+  line-height: 1.45;
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.outline-item:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+/* 当前滚动位置对应的大纲项 */
+.outline-item.is-active {
+  background: var(--ui-bg-active);
+  color: var(--ui-accent);
+}
+
+.outline-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ui-accent);
+}
+
+/* 标题层级若干视觉差异 */
+.outline-item--h1 {
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.outline-item--h2 {
+  font-weight: 500;
+}
+
+.outline-item--h3,
+.outline-item--h4,
+.outline-item--h5,
+.outline-item--h6 {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+
+.outline-item__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 大纲项右侧的行号提示 */
+.outline-item__line {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  opacity: 0;
+  transition: opacity var(--ui-dur) var(--ui-ease);
+}
+
+.outline-item:hover .outline-item__line {
+  opacity: 1;
+}
+
+/* ============================================================
+   四、最近打开
+   ============================================================ */
+.recent {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-bottom: 6px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 22px;
+  padding: 2px 8px 2px 10px;
+  color: var(--ui-text-dim);
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.recent-item:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+.recent-item.is-active {
+  background: var(--ui-bg-active);
+  color: var(--ui-accent);
+}
+
+.recent-item__name {
+  flex: none;
+  max-width: 46%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: inherit;
+}
+
+/* 完整路径：弱化、省略号截断（hover 时用原生 title 显示全文） */
+.recent-item__path {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;      /* 路径过长时优先保留文件名一侧 */
+  text-align: left;
+}
+
+/* 文件已不存在：灰色 + 删除线 */
+.recent-item.is-missing {
+  color: var(--ui-text-faint);
+  opacity: .75;
+}
+
+.recent-item.is-missing .recent-item__name,
+.recent-item.is-missing .recent-item__path {
+  text-decoration: line-through;
+  text-decoration-color: var(--ui-text-faint);
+}
+
+.recent-item.is-missing:hover {
+  background: var(--ui-danger-soft);
+  color: var(--ui-text-faint);
+}
+
+/* 最近文件条目的移除按钮 */
+.recent-item__remove {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  line-height: 1;
+  opacity: 0;
+}
+
+.recent-item:hover .recent-item__remove {
+  opacity: 1;
+}
+
+.recent-item__remove:hover {
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+}
+
+/* ============================================================
+   五、全局搜索结果
+   ============================================================ */
+.searchresults {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 0 12px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.searchresult {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--ui-border);
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease);
+}
+
+.searchresult:hover {
+  background: var(--ui-bg-hover);
+}
+
+.searchresult.is-active {
+  background: var(--ui-bg-active);
+}
+
+/* 文件名行 */
+.searchresult__file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text);
+  font-weight: 600;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.searchresult__path {
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  font-weight: 400;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  direction: rtl;
+}
+
+.searchresult__count {
+  flex: none;
+  margin-left: auto;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  font-family: var(--ui-font-mono);
+}
+
+/* 命中行 */
+.searchresult__hit {
+  display: flex;
+  gap: 6px;
+  margin-top: 3px;
+  padding-left: 4px;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.searchresult__lineno {
+  flex: none;
+  min-width: 26px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  text-align: right;
+}
+
+.searchresult__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* 关键词高亮 */
+.searchresult mark,
+.searchresult__hl {
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--ui-mark);
+  color: inherit;
+}
+
+/* 搜索进行中的提示 */
+.searchresults.is-searching::before {
+  content: "正在搜索…";
+  display: block;
+  padding: 12px;
+  text-align: center;
+  color: var(--ui-text-faint);
+  font-size: 12px;
+}
+
+/* ============================================================
+   六、按钮体系
+   ============================================================ */
+/* 常规按钮 */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 11px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  color: var(--ui-text);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition: background var(--ui-dur) var(--ui-ease), border-color var(--ui-dur) var(--ui-ease),
+    color var(--ui-dur) var(--ui-ease);
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  border-color: var(--ui-border-strong);
+}
+
+.btn:active:not(:disabled) {
+  background: var(--ui-bg-active);
+}
+
+/* 主按钮：品牌绿实心 */
+.btn--primary {
+  border-color: transparent;
+  background: var(--ui-accent);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.btn--primary:hover:not(:disabled) {
+  background: var(--ui-accent-hover);
+}
+
+.btn--primary:active:not(:disabled) {
+  background: var(--ui-accent-hover);
+  filter: brightness(.95);
+}
+
+/* 危险按钮 */
+.btn--danger {
+  border-color: transparent;
+  background: var(--ui-danger);
+  color: #ffffff;
+}
+
+.btn--danger:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* 幽灵按钮：无边框，hover 才出现底色 */
+.btn--ghost {
+  border-color: transparent;
+  background: transparent;
+}
+
+.btn--ghost:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+}
+
+/* 激活态（如状态栏按钮、切换类按钮） */
+.btn.is-active {
+  border-color: var(--ui-accent);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+/* 尺寸变体 */
+.btn--sm {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11.5px;
+  border-radius: var(--ui-radius-sm);
+}
+
+.btn--lg {
+  height: 32px;
+  padding: 0 16px;
+  font-size: 13.5px;
+}
+
+.btn--block {
+  width: 100%;
+}
+
+/* 图标按钮（标题栏、面板头、查找条） */
+.iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-dim);
+  font-size: 13px;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.iconbtn:hover:not(:disabled) {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+.iconbtn:active:not(:disabled) {
+  background: var(--ui-bg-active);
+}
+
+.iconbtn.is-active {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+.iconbtn:disabled {
+  color: var(--ui-text-faint);
+  opacity: .5;
+}
+
+.iconbtn--sm {
+  width: 20px;
+  height: 20px;
+  font-size: 11.5px;
+  border-radius: var(--ui-radius-sm);
+}
+
+.iconbtn--lg {
+  width: 32px;
+  height: 32px;
+  font-size: 15px;
+}
+
+/* 文字链接按钮 */
+.linkbtn {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-accent);
+  font-size: 11px;
+  white-space: nowrap;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.linkbtn:hover {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent-hover);
+}
+
+.linkbtn.is-disabled {
+  color: var(--ui-text-faint);
+  pointer-events: none;
+}
+
+/* 按钮组（分段控件） */
+.btngroup {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius);
+  overflow: hidden;
+}
+
+.btngroup > .btn {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid var(--ui-border);
+  height: 24px;
+}
+
+.btngroup > .btn:last-child {
+  border-right: none;
+}
+
+.btngroup > .btn.is-active {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+/* ============================================================
+   七、输入控件
+   ============================================================ */
+.input {
+  width: 100%;
+  height: 28px;
+  min-width: 0;
+  padding: 0 9px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-size: 12.5px;
+  outline: none;
+  transition: border-color var(--ui-dur) var(--ui-ease), box-shadow var(--ui-dur) var(--ui-ease),
+    background var(--ui-dur) var(--ui-ease);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--ui-text-faint);
+}
+
+.input:focus {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 3px var(--ui-accent-soft);
+}
+
+.input:disabled {
+  background: var(--ui-bg-alt);
+}
+
+.input--sm {
+  height: 24px;
+  padding: 0 7px;
+  font-size: 12px;
+  border-radius: var(--ui-radius-sm);
+}
+
+/* 数字与下拉框沿用 input 外观 */
+select.input,
+.select {
+  width: auto;
+  min-width: 108px;
+  height: 28px;
+  padding: 0 26px 0 8px;
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ui-text-dim) 50%),
+    linear-gradient(135deg, var(--ui-text-dim) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 12px, calc(100% - 9px) 12px;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: default;
+}
+
+/* 多行文本框 */
+textarea.input {
+  height: auto;
+  min-height: 64px;
+  padding: 6px 9px;
+  line-height: 1.6;
+  resize: vertical;
+  font-family: var(--ui-font-mono);
+}
+
+/* 输入框前后缀容器（如设置里的 px 单位、路径浏览按钮） */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field__suffix {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+}
+
+/* 复选框 + 文字的一行 */
+.checkline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ui-text-dim);
+  font-size: 12px;
+  line-height: 1.5;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.checkline:hover {
+  color: var(--ui-text);
+}
+
+.checkline--inline {
+  display: inline-flex;
+}
+
+/* 搜索面板顶部的输入区 */
+.searchbox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: none;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+/* 表单行（设置面板、模态框内） */
+.formrow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 0;
+}
+
+.formrow__label {
+  flex: none;
+  width: 132px;
+  color: var(--ui-text-dim);
+  font-size: 12.5px;
+  text-align: right;
+}
+
+.formrow__control {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.formrow__hint {
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* 开关（自定义 checkbox 滑块） */
+.switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  width: 34px;
+  height: 18px;
+  flex: none;
+  border-radius: 9px;
+  background: var(--ui-border-strong);
+  transition: background var(--ui-dur) var(--ui-ease);
+}
+
+.switch::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, .25);
+  transition: transform var(--ui-dur) var(--ui-ease);
+}
+
+.switch input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.switch.is-on,
+.switch:has(input:checked) {
+  background: var(--ui-accent);
+}
+
+.switch.is-on::after,
+.switch:has(input:checked)::after {
+  transform: translateX(16px);
+}
+
+/* ============================================================
+   八、与实际渲染实现对齐的补充规则（兼容对齐补丁）
+   对应 ui/sidebar.ts 与 core/ui-kit.ts 真实生成的 DOM 结构。
+   ============================================================ */
+
+/* ---------- 8.1 文件树：层级包裹与节点 ---------- */
+/* sidebar.ts 用嵌套的 .tree-level 容器表达层级，缩进为内联 padding */
+.tree-level {
+  display: block;
+}
+
+.tree-level .tree-level {
+  display: block;
+}
+
+/* 单个节点的外层（含该节点的子层级） */
+.tree-node {
+  display: block;
+}
+
+/* 树条目本体：可点击 */
+.tree-item {
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 展开箭头（实际实现写入 ▶ 文本，由 CSS 控制旋转与显隐） */
+.tree-item__toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 12px;
+  height: 12px;
+  color: var(--ui-text-faint);
+  font-size: 8px;
+  line-height: 1;
+  transform: rotate(0deg);
+  transition: transform var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+/* 展开的文件夹：箭头旋转 90° */
+.tree-item__toggle.is-open {
+  transform: rotate(90deg);
+  color: var(--ui-text-dim);
+}
+
+.tree-item:hover > .tree-item__toggle {
+  color: var(--ui-accent);
+}
+
+/* 文件没有子树，箭头位留空 */
+.tree-item__toggle.is-leaf {
+  visibility: hidden;
+}
+
+/* 名称 */
+.tree-item__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Markdown 文件稍微加深，便于在目录中快速识别 */
+.tree-item.is-markdown > .tree-item__name {
+  color: var(--ui-text);
+}
+
+.tree-item.is-selected > .tree-item__name {
+  color: var(--ui-accent);
+  font-weight: 500;
+}
+
+/* 空工作区占位里的按钮居中 */
+.empty-hint .btn {
+  margin-top: 10px;
+}
+
+/* 空列表占位的次级说明 */
+.empty-hint__sub {
+  display: block;
+  margin-top: 4px;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  opacity: .85;
+}
+
+/* ---------- 8.2 最近打开：实际结构 ---------- */
+.recent-item {
+  cursor: default;
+}
+
+.recent-item__icon {
+  flex: none;
+  width: 15px;
+  font-size: 12px;
+  line-height: 1;
+  text-align: center;
+  opacity: .85;
+}
+
+/* 标题 + 路径两行 */
+.recent-item__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.recent-item__title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ui-text);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.recent-item__path {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ui-text-faint);
+  font-size: 10.5px;
+  line-height: 1.35;
+  direction: rtl;
+  text-align: left;
+}
+
+/* 打开时间 */
+.recent-item__time {
+  flex: none;
+  color: var(--ui-text-faint);
+  font-size: 10.5px;
+  font-family: var(--ui-font-mono);
+  opacity: 0;
+  transition: opacity var(--ui-dur) var(--ui-ease);
+}
+
+.recent-item:hover .recent-item__time {
+  opacity: 1;
+}
+
+/* 已失效文件的标题与路径一并置灰 + 删除线 */
+.recent-item.is-missing .recent-item__title,
+.recent-item.is-missing .recent-item__path {
+  color: var(--ui-text-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--ui-text-faint);
+}
+
+/* 当前正在编辑的最近文件 */
+.recent-item.is-active .recent-item__title {
+  color: var(--ui-accent);
+}
+
+/* ---------- 8.3 全局搜索结果：分组与命中行 ---------- */
+/* 结果总数提示条 */
+.searchresults__count {
+  display: block;
+  padding: 6px 10px;
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+/* 单个文件分组 */
+.searchgroup {
+  display: block;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.searchgroup + .searchgroup {
+  margin-top: 2px;
+}
+
+.searchgroup__head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.searchgroup__icon {
+  flex: none;
+  font-size: 12px;
+  line-height: 1;
+  opacity: .9;
+}
+
+.searchgroup__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.searchgroup__count {
+  flex: none;
+  min-width: 18px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-align: center;
+}
+
+/* 单条命中 */
+.searchhit {
+  display: flex;
+  gap: 7px;
+  padding: 4px 10px 4px 14px;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  line-height: 1.55;
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease);
+}
+
+.searchhit:hover {
+  background: var(--ui-bg-hover);
+}
+
+.searchhit.is-active {
+  background: var(--ui-bg-active);
+}
+
+.searchhit__line {
+  flex: none;
+  min-width: 26px;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  text-align: right;
+}
+
+.searchhit__snippet {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+/* 搜索命中片段里的 <mark> 高亮 */
+.searchhit__snippet mark,
+.searchhit__snippet .highlight {
+  padding: 0 2px;
+  border-radius: 2px;
+  background: var(--ui-mark);
+  color: inherit;
+  font-weight: 600;
+}
+
+/* ---------- 8.4 大纲：层级缩进由内联 --outline-depth 决定 ---------- */
+.outline-item--h1 { --outline-depth: 0; }
+.outline-item--h2 { --outline-depth: 1; }
+.outline-item--h3 { --outline-depth: 2; }
+.outline-item--h4 { --outline-depth: 3; }
+.outline-item--h5 { --outline-depth: 4; }
+.outline-item--h6 { --outline-depth: 5; }
+
+/* ---------- 8.5 Toast 实际结构（toast__text / 进入动画类名） ---------- */
+.toast__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ui-text);
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+/* 可点击关闭 */
+.toast {
+  cursor: default;
+}
+
+/* 进入动画：JS 在下一帧加上 .toast--enter 触发 */
+.toast--enter {
+  animation: hsm-toast-in 180ms var(--ui-ease);
+}
+
+/* 离开动画：JS 先加 .toast--leaving，180ms 后移除节点 */
+.toast--leaving {
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 180ms var(--ui-ease), transform 180ms var(--ui-ease);
+}
+
+/* ============================================================
+   九、Toast 提示条（从右侧滑入，自动淡出）
+   ============================================================ */
+.toast-root {
+  position: fixed;
+  right: 14px;
+  bottom: calc(var(--statusbar-height) + 14px);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;
+  max-width: 380px;
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 190px;
+  max-width: 380px;
+  padding: 9px 12px;
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--ui-text-dim);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  box-shadow: var(--ui-shadow-lg);
+  color: var(--ui-text);
+  font-size: 12.5px;
+  line-height: 1.55;
+  word-break: break-word;
+  pointer-events: auto;
+  animation: hsm-toast-in 180ms var(--ui-ease);
+}
+
+@keyframes hsm-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px) scale(.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+/* 自动淡出（JS 在移除前加 .is-leaving） */
+.toast.is-leaving {
+  opacity: 0;
+  transform: translateX(16px);
+  transition: opacity 160ms var(--ui-ease), transform 160ms var(--ui-ease);
+}
+
+/* 四种语义配色 */
+.toast--success {
+  border-left-color: var(--ui-success);
+}
+
+.toast--success .toast__icon {
+  color: var(--ui-success);
+}
+
+.toast--error {
+  border-left-color: var(--ui-danger);
+}
+
+.toast--error .toast__icon {
+  color: var(--ui-danger);
+}
+
+.toast--warning {
+  border-left-color: var(--ui-warning);
+}
+
+.toast--warning .toast__icon {
+  color: var(--ui-warning);
+}
+
+.toast--info {
+  border-left-color: var(--ui-info);
+}
+
+.toast--info .toast__icon {
+  color: var(--ui-info);
+}
+
+/* Toast 内部结构 */
+.toast__icon {
+  flex: none;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.toast__body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.toast__title {
+  display: block;
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.toast__message {
+  display: block;
+  color: var(--ui-text-dim);
+  font-size: 12px;
+}
+
+/* 关闭按钮 */
+.toast__close {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-faint);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.toast__close:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-text);
+}
+
+/* Toast 中的操作按钮（如"撤销""重载"） */
+.toast__action {
+  flex: none;
+  align-self: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+  font-size: 11.5px;
+}
+
+.toast__action:hover {
+  background: var(--ui-accent);
+  color: #ffffff;
+}
+
+/* 进度型 Toast（导出、索引重建） */
+.toast__progress {
+  display: block;
+  height: 3px;
+  margin-top: 6px;
+  border-radius: 2px;
+  background: var(--ui-bg-hover);
+  overflow: hidden;
+}
+
+.toast__progress-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 2px;
+  background: var(--ui-accent);
+  transition: width 160ms var(--ui-ease);
+}

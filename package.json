@@ -1,0 +1,65 @@
+{
+  "name": "huashengmiao-markdown",
+  "productName": "花生苗Markdown编辑器",
+  "version": "1.0.0",
+  "description": "花生苗 Markdown 编辑器 —— 开源免费、所见即所得(Typora 类)的跨平台 Markdown 编辑器",
+  "author": {
+    "name": "何飞",
+    "email": "6731663@wechat.com"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/Passer9527/huashengmiao-markdown",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Passer9527/huashengmiao-markdown.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Passer9527/huashengmiao-markdown/issues"
+  },
+  "main": "dist/main/main.js",
+  "desktopName": "huashengmiao-markdown.desktop",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "start": "npm run build && electron .",
+    "dev": "node scripts/build.mjs --watch --serve",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test test/unit.test.mjs && node test/e2e.mjs",
+    "pack:dir": "node scripts/release.mjs dir",
+    "dist:win": "node scripts/release.mjs win",
+    "dist:linux": "node scripts/release.mjs linux",
+    "dist:all": "node scripts/release.mjs win linux",
+    "icon": "node scripts/make-icon.mjs",
+    "test:unit": "node --test test/unit.test.mjs",
+    "test:e2e": "node test/e2e.mjs"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^22.10.2",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.24.2",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@codemirror/autocomplete": "^6.18.4",
+    "@codemirror/commands": "^6.7.1",
+    "@codemirror/lang-markdown": "^6.3.1",
+    "@codemirror/language": "^6.10.8",
+    "@codemirror/search": "^6.5.8",
+    "@codemirror/state": "^6.5.0",
+    "@codemirror/view": "^6.36.1",
+    "@lezer/highlight": "^1.2.1",
+    "highlight.js": "^11.11.1",
+    "katex": "^0.16.11",
+    "markdown-it": "^14.1.0",
+    "markdown-it-deflist": "^3.0.0",
+    "markdown-it-emoji": "^3.0.0",
+    "markdown-it-footnote": "^4.0.0",
+    "markdown-it-mark": "^4.0.0",
+    "markdown-it-sub": "^2.0.0",
+    "markdown-it-sup": "^2.0.0",
+    "markdown-it-task-lists": "^2.1.1",
+    "mermaid": "^11.4.1"
+  }
+}

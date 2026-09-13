@@ -1,0 +1,1989 @@
+/**
+ * 花生苗 Markdown 编辑器 —— 编辑区与 CodeMirror 6（editor.css）
+ * ------------------------------------------------------------------
+ * DOM 层级（由渲染进程创建）：
+ *   .editor-host > .editor-scroll > .editor-inner > .hsm-editor > .cm-editor
+ *
+ * 排版变量由 JS 写到 .editor-inner 的行内 style 上：
+ *   --editor-font-size / --editor-line-height / --editor-page-width
+ *   --editor-font / --editor-code-font
+ * 这里的默认值来自 base.css，保证 JS 未写入前也能正常显示。
+ *
+ * 类名分为三层：
+ *   1. CodeMirror 原生结构类（.cm-editor / .cm-content / .cm-gutters …）
+ *   2. 行级装饰器（.hsm-line-h1 ~ h6、引用、代码、列表、任务、分割线、Front Matter、表格）
+ *   3. 行内标记（加粗、斜体、删除线、行内代码、高亮、链接、上下标、行内公式）
+ *   4. 块级 Widget（代码块、Mermaid、表格、图片、分割线、公式块、Front Matter、TOC、列表圆点、复选框）
+ *
+ * 作者：何飞    联系方式：微信 6731663
+ * 开源协议：MIT
+ */
+
+/* ============================================================
+   一、外层滚动容器与排版变量
+   ============================================================ */
+.editor-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  background: var(--ui-bg);
+  scroll-behavior: auto;
+}
+
+/* 内容内层：承载排版变量，高度自适应内容，保证滚动条正确 */
+.editor-inner {
+  --editor-font-size: 16px;
+  --editor-line-height: 1.7;
+  --editor-page-width: 800px;
+  --editor-font: var(--ui-font);
+  --editor-code-font: var(--ui-font-mono);
+  --editor-padding-x: 60px;
+  --editor-padding-y: 48px;
+
+  display: block;
+  width: 100%;
+  min-height: 100%;
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  color: var(--ui-text);
+}
+
+/* CodeMirror 挂载点：撑满内层，由 .cm-editor 自身高度决定 */
+.hsm-editor {
+  display: block;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* 编辑区在无内容时的整体底色（避免与欢迎页切换闪烁） */
+.workspace .editor-scroll.is-empty {
+  background: var(--ui-bg);
+}
+
+/* ============================================================
+   二、CodeMirror 基础结构
+   ============================================================ */
+.cm-editor {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+  background: transparent;
+  color: var(--ui-text);
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+}
+
+/* 让编辑区在未获得焦点时也保持正常颜色（不做灰化） */
+.cm-editor.cm-focused {
+  outline: none !important;
+}
+
+.cm-scroller {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: visible;   /* 滚动交给外层 .editor-scroll，保持状态栏/查找条固定 */
+  font-family: inherit;
+  line-height: inherit;
+  padding-bottom: var(--editor-padding-y);
+}
+
+.cm-content {
+  position: relative;
+  max-width: var(--editor-page-width);
+  margin: 0 auto;
+  padding: var(--editor-padding-y) var(--editor-padding-x);
+  font-family: var(--editor-font);
+  font-size: var(--editor-font-size);
+  line-height: var(--editor-line-height);
+  caret-color: var(--ui-accent);
+  word-break: break-word;
+  overflow-wrap: break-word;
+  -webkit-font-variant-ligatures: none;
+  font-variant-ligatures: none;
+}
+
+/* 全宽模式：去掉页宽限制（JS 会在 .editor-inner 上加 .is-fullwidth） */
+.editor-inner.is-fullwidth .cm-content,
+.cm-content.is-fullwidth {
+  max-width: none;
+}
+
+/* 单行基础行高与行间距 */
+.cm-line {
+  padding: 0;
+  min-height: calc(var(--editor-font-size) * var(--editor-line-height));
+  line-height: var(--editor-line-height);
+}
+
+/* ------------------------------------------------------------------
+ * 【重要】绝对不要隐藏 .cm-line 里的 <br>
+ * ------------------------------------------------------------------
+ * CodeMirror 会用 <br>（LineBreak 组件）作为空行的占位元素，
+ * 并依赖它的布局信息来测量光标坐标（view.coordsAtPos）。
+ *
+ * 一旦写成 `.cm-line br { display: none }`，空行与"以小部件结尾的行"
+ * 就会失去可测量的内容，coordsAtPos 会返回 null，直接后果是：
+ *   · 光标停在空行（含文档末尾那一行）时，闪烁光标根本不会被绘制；
+ *   · 点击空行时看起来"光标没有跟随鼠标"。
+ * 因此这里保持 <br> 的默认 display，不做任何隐藏。
+ * ------------------------------------------------------------------ */
+
+/* CodeMirror 的 tab 占位 */
+.cm-tab {
+  display: inline-block;
+  width: 4ch;
+}
+
+
+/* 空文档时的占位符 */
+.cm-placeholder {
+  color: var(--ui-text-faint);
+  font-style: normal;
+}
+
+/* ---------- 行号栏 ---------- */
+.cm-gutters {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+  padding: 0 6px 0 4px;
+  border-right: 1px solid var(--ui-border);
+  background: var(--ui-bg);
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: max(11px, calc(var(--editor-font-size) - 4px));
+  line-height: var(--editor-line-height);
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 行号与折叠槽上下留白与正文对齐 */
+.cm-gutters .cm-gutter {
+  min-width: 32px;
+}
+
+.cm-lineNumbers .cm-gutterElement {
+  padding: 0 6px 0 2px;
+  min-width: 24px;
+  text-align: right;
+  line-height: var(--editor-line-height);
+  transition: color var(--ui-dur) var(--ui-ease);
+}
+
+/* 当前行行号强调 */
+.cm-activeLineGutter {
+  background: var(--ui-bg-hover);
+  color: var(--ui-accent);
+  font-weight: 600;
+}
+
+/* 折叠槽箭头 */
+.cm-foldGutter .cm-gutterElement {
+  padding: 0 4px;
+  color: var(--ui-text-faint);
+  cursor: default;
+  line-height: var(--editor-line-height);
+}
+
+.cm-foldGutter .cm-gutterElement:hover {
+  color: var(--ui-accent);
+}
+
+/* ---------- 当前行高亮 ---------- */
+.cm-activeLine {
+  background: var(--ui-bg-hover);
+  border-radius: var(--ui-radius-sm);
+}
+
+/* 实时渲染下当前行称为"激活行"，专注模式据此淡化其它行 */
+.cm-line.hsm-active-line {
+  background: var(--ui-bg-hover);
+}
+
+/* ---------- 光标与选区 ---------- */
+.cm-cursor,
+.cm-dropCursor {
+  border-left: 2px solid var(--ui-accent);
+  margin-left: -1px;
+}
+
+.cm-cursorLayer.cm-blink .cm-cursor {
+  animation: hsm-cursor-blink 1.06s steps(1) infinite;
+}
+
+@keyframes hsm-cursor-blink {
+  0%, 50% { opacity: 1; }
+  50.01%, 100% { opacity: 0; }
+}
+
+/* 多光标次级光标 */
+.cm-cursor-secondary {
+  border-left-color: var(--ui-text-dim);
+}
+
+.cm-selectionBackground {
+  background: var(--ui-selection) !important;
+}
+
+.cm-focused .cm-selectionBackground,
+.cm-editor .cm-selectionBackground {
+  background: var(--ui-selection) !important;
+}
+
+.cm-content ::selection {
+  background: var(--ui-selection);
+}
+
+/* 选区匹配项（选中相同词高亮） */
+.cm-selectionMatch {
+  background: var(--ui-accent-soft);
+  border-radius: 2px;
+}
+
+/* 括号匹配 */
+.cm-matchingBracket,
+.cm-focused .cm-matchingBracket {
+  background: var(--ui-accent-soft);
+  outline: 1px solid var(--ui-accent);
+  border-radius: 2px;
+}
+
+.cm-nonmatchingBracket,
+.cm-focused .cm-nonmatchingBracket {
+  color: var(--ui-danger);
+  outline: 1px solid var(--ui-danger);
+}
+
+/* 补全提示（@codemirror/autocomplete） */
+.cm-tooltip {
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  box-shadow: var(--ui-shadow-lg);
+  color: var(--ui-text);
+  font-size: 12.5px;
+  overflow: hidden;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  max-height: 260px;
+  font-family: var(--ui-font);
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: 4px 8px;
+  line-height: 1.5;
+}
+
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--ui-bg-active);
+  color: var(--ui-accent);
+}
+
+.cm-completionLabel {
+  font-size: 12.5px;
+}
+
+.cm-completionDetail {
+  margin-left: 8px;
+  color: var(--ui-text-faint);
+  font-style: normal;
+  font-size: 11.5px;
+}
+
+/* ---------- 搜索面板（.cm-panels 与搜索命中） ---------- */
+.cm-panels {
+  background: var(--ui-bg-alt);
+  border-color: var(--ui-border);
+  color: var(--ui-text);
+}
+
+.cm-panels.cm-panels-top {
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.cm-panels.cm-panels-bottom {
+  border-top: 1px solid var(--ui-border);
+}
+
+.cm-panel {
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+.cm-panel input,
+.cm-panel button,
+.cm-panel select {
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--ui-border-strong);
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-bg);
+  color: var(--ui-text);
+  font-size: 12px;
+}
+
+.cm-panel button {
+  background: var(--ui-bg-elevated);
+  cursor: default;
+}
+
+.cm-panel button:hover {
+  background: var(--ui-bg-hover);
+}
+
+.cm-panel label {
+  font-size: 12px;
+  color: var(--ui-text-dim);
+}
+
+/* 搜索命中：普通命中与当前命中 */
+.cm-searchMatch {
+  background: rgba(210, 153, 34, .32);
+  outline: 1px solid rgba(210, 153, 34, .55);
+  border-radius: 2px;
+}
+
+.cm-searchMatch-selected {
+  background: var(--ui-accent-soft);
+  outline: 1px solid var(--ui-accent);
+}
+
+/* ============================================================
+   三、编辑区内的查找工具条（自定义 findbar，非 CodeMirror 面板）
+   ============================================================ */
+.findbar {
+  position: absolute;
+  top: 8px;
+  right: 18px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  box-shadow: var(--ui-shadow-lg);
+  font-size: 12px;
+}
+
+.findbar__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.findbar__count {
+  min-width: 52px;
+  text-align: center;
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 11.5px;
+}
+
+.findbar__options {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+}
+
+/* ============================================================
+   四、行级装饰器
+   ============================================================ */
+
+/* ---------- 标题 H1 ~ H6：字号递减、加粗、H1/H2 带下边框 ---------- */
+.hsm-line-h1,
+.hsm-line-h2,
+.hsm-line-h3,
+.hsm-line-h4,
+.hsm-line-h5,
+.hsm-line-h6 {
+  font-weight: 700;
+  color: var(--ui-text);
+  line-height: 1.35;
+  letter-spacing: .2px;
+}
+
+.hsm-line-h1 {
+  font-size: 1.9em;
+  margin-top: .7em;
+  padding-bottom: .28em;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.hsm-line-h2 {
+  font-size: 1.55em;
+  margin-top: .65em;
+  padding-bottom: .24em;
+  border-bottom: 1px solid var(--ui-border);
+}
+
+.hsm-line-h3 {
+  font-size: 1.3em;
+  margin-top: .6em;
+}
+
+.hsm-line-h4 {
+  font-size: 1.14em;
+  margin-top: .55em;
+}
+
+.hsm-line-h5 {
+  font-size: 1.02em;
+  margin-top: .5em;
+  color: var(--ui-text-dim);
+}
+
+.hsm-line-h6 {
+  font-size: .95em;
+  margin-top: .5em;
+  color: var(--ui-text-dim);
+  letter-spacing: .4px;
+}
+
+/* ---------- 引用块：左侧 4px 竖线 + 浅背景 ---------- */
+.hsm-line-quote {
+  border-left: 4px solid var(--ui-border-strong);
+  background: var(--ui-block-bg);
+  padding-left: 12px;
+  margin-left: 2px;
+  color: var(--ui-text-dim);
+  border-radius: 0 var(--ui-radius-sm) var(--ui-radius-sm) 0;
+}
+
+/* 嵌套引用（装饰器按层级追加，最多 4 层） */
+.hsm-line-quote.hsm-line-quote-2 {
+  border-left-color: var(--ui-accent-soft);
+  margin-left: 14px;
+}
+
+.hsm-line-quote.hsm-line-quote-3 {
+  margin-left: 26px;
+}
+
+/* ---------- 代码块内的行（不含围栏行） ---------- */
+.hsm-line-code {
+  background: var(--ui-block-bg);
+  font-family: var(--editor-code-font);
+  font-size: .92em;
+  white-space: pre;
+  overflow-wrap: normal;
+}
+
+/* 围栏行（```lang 本身）：源码模式下才显示，这里给一点淡化 */
+.hsm-line-code-fence {
+  color: var(--ui-text-faint);
+  font-family: var(--editor-code-font);
+  font-size: .85em;
+}
+
+/* ---------- 列表行 ---------- */
+.hsm-line-list {
+  padding-left: 4px;
+}
+
+/* 任务列表行 */
+.hsm-line-task {
+  padding-left: 4px;
+}
+
+.hsm-line-task.is-done {
+  color: var(--ui-text-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--ui-text-faint);
+}
+
+/* ---------- 分割线（源码形态的一行 ---） ---------- */
+.hsm-line-hr {
+  color: transparent;
+  border-top: 1px solid var(--ui-border-strong);
+  margin: .8em 0;
+  min-height: 0;
+  height: 0;
+  font-size: 0;
+  line-height: 0;
+}
+
+/* ---------- YAML Front Matter 区间 ---------- */
+.hsm-line-frontmatter {
+  background: var(--ui-block-bg);
+  border-left: 3px solid var(--ui-warning);
+  color: var(--ui-text-dim);
+  font-family: var(--editor-code-font);
+  font-size: .88em;
+  padding-left: 8px;
+}
+
+/* ---------- 表格源码行 ---------- */
+.hsm-line-table {
+  font-family: var(--editor-code-font);
+  font-size: .9em;
+  color: var(--ui-text-dim);
+  background: var(--ui-block-bg);
+}
+
+/* 表格分隔行（| --- | --- |） */
+.hsm-line-table-sep {
+  color: var(--ui-text-faint);
+}
+
+/* ============================================================
+   五、行内标记装饰器
+   ============================================================ */
+
+/* 加粗 */
+.hsm-strong {
+  font-weight: 700;
+  color: var(--ui-text);
+}
+
+/* 斜体 */
+.hsm-em {
+  font-style: italic;
+}
+
+/* 删除线（变灰） */
+.hsm-del {
+  text-decoration: line-through;
+  color: var(--ui-text-faint);
+}
+
+/* 行内代码 */
+.hsm-code {
+  padding: .12em .35em;
+  border-radius: var(--ui-radius-sm);
+  background: var(--ui-code-bg);
+  color: var(--ui-text);
+  font-family: var(--editor-code-font);
+  font-size: .9em;
+  white-space: break-spaces;
+}
+
+/* ==高亮== */
+.hsm-mark {
+  padding: 0 .15em;
+  border-radius: 2px;
+  background: var(--ui-mark);
+  color: inherit;
+}
+
+/* 链接文本 */
+.hsm-link {
+  color: var(--ui-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: default;
+}
+
+.hsm-link:hover {
+  color: var(--ui-accent-hover);
+  text-decoration-thickness: 2px;
+}
+
+/* 链接地址（非激活行隐藏时降级显示为灰色小字） */
+.hsm-url {
+  color: var(--ui-text-faint);
+  font-size: .85em;
+  font-family: var(--ui-font-mono);
+  word-break: break-all;
+}
+
+/* 上标 / 下标 */
+.hsm-sub {
+  font-size: .75em;
+  vertical-align: sub;
+  line-height: 0;
+}
+
+.hsm-sup {
+  font-size: .75em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* 行内公式（KaTeX 容器） */
+.hsm-math-inline {
+  display: inline-block;
+  padding: 0 2px;
+  vertical-align: baseline;
+  font-size: 1em;
+}
+
+.hsm-math-inline .katex {
+  font-size: 1.02em;
+}
+
+/* Emoji 短代码渲染结果 */
+.hsm-emoji {
+  font-style: normal;
+  font-size: 1.05em;
+}
+
+/* 脚注角标 */
+.hsm-footnote-ref {
+  color: var(--ui-accent);
+  font-size: .78em;
+  vertical-align: super;
+  line-height: 0;
+}
+
+/* 被隐藏的 Markdown 语法标记（** _ ~~ ` # 等） */
+.hsm-hidden {
+  display: none;
+}
+
+/* 图片语法未渲染时的降级文字 */
+.hsm-image-text {
+  color: var(--ui-text-dim);
+  font-style: italic;
+}
+
+/* ============================================================
+   六、块级 Widget 通用
+   ============================================================ */
+.hsm-widget {
+  display: block;
+  box-sizing: border-box;
+  margin: .5em 0;
+  font-family: var(--editor-font);
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* 让独占整行的 widget 高度与间距正确：
+   CodeMirror 用零宽换行占位，这里统一压制行高塌陷 */
+.cm-line:has(> .hsm-widget) {
+  line-height: 0;
+  font-size: 0;
+}
+
+.cm-line:has(> .hsm-widget:first-child:last-child) {
+  padding: 0;
+}
+
+.cm-line > .hsm-widget:only-child {
+  margin: 0;
+}
+
+/* 行内 widget（复选框、列表圆点等） */
+.hsm-widget--inline {
+  display: inline-block;
+  margin: 0;
+  vertical-align: middle;
+}
+
+/* ---------- 代码块 Widget ---------- */
+.hsm-codeblock {
+  position: relative;
+  margin: .7em 0;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-block-bg);
+  overflow: hidden;
+  /* 左右与正文保持一致的视觉边距（正文已有 padding，这里只做小幅内缩） */
+  padding: 0;
+}
+
+.hsm-codeblock pre {
+  margin: 0;
+  padding: 30px 14px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: transparent;
+  font-family: var(--editor-code-font);
+  font-size: .9em;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 4;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.hsm-codeblock code {
+  display: block;
+  background: transparent;
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: inherit;
+  white-space: pre;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 右上角语言标签 */
+.hsm-codeblock__lang {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 9px;
+  border-left: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0 var(--ui-radius) 0 var(--ui-radius-sm);
+  background: var(--ui-bg-alt);
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+/* 代码块右上角操作按钮（复制 / 编辑） */
+.hsm-codeblock__actions {
+  position: absolute;
+  top: 2px;
+  right: 62px;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-codeblock:hover .hsm-codeblock__actions {
+  opacity: 1;
+}
+
+.hsm-codeblock__btn {
+  width: 22px;
+  height: 20px;
+  border-radius: var(--ui-radius-sm);
+  color: var(--ui-text-dim);
+  font-size: 11px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.hsm-codeblock__btn:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-accent);
+}
+
+/* 折叠状态：只显示首行 */
+.hsm-codeblock.is-collapsed pre {
+  max-height: 44px;
+  overflow: hidden;
+}
+
+/* ---------- 代码高亮（highlight.js 主题类，颜色可被代码主题覆盖） ---------- */
+.hsm-codeblock .hljs-comment,
+.hsm-codeblock .hljs-quote {
+  color: var(--ui-text-faint);
+  font-style: italic;
+}
+
+.hsm-codeblock .hljs-keyword,
+.hsm-codeblock .hljs-selector-tag,
+.hsm-codeblock .hljs-literal {
+  color: #cf222e;
+  font-weight: 600;
+}
+
+.hsm-codeblock .hljs-string,
+.hsm-codeblock .hljs-regexp,
+.hsm-codeblock .hljs-addition {
+  color: #0a7b34;
+}
+
+.hsm-codeblock .hljs-number,
+.hsm-codeblock .hljs-symbol,
+.hsm-codeblock .hljs-bullet {
+  color: #0550ae;
+}
+
+.hsm-codeblock .hljs-title,
+.hsm-codeblock .hljs-title.function_,
+.hsm-codeblock .hljs-section {
+  color: #8250df;
+  font-weight: 600;
+}
+
+.hsm-codeblock .hljs-attr,
+.hsm-codeblock .hljs-attribute,
+.hsm-codeblock .hljs-variable,
+.hsm-codeblock .hljs-template-variable {
+  color: #953800;
+}
+
+.hsm-codeblock .hljs-type,
+.hsm-codeblock .hljs-title.class_,
+.hsm-codeblock .hljs-built_in {
+  color: #0550ae;
+  font-weight: 600;
+}
+
+.hsm-codeblock .hljs-meta,
+.hsm-codeblock .hljs-meta .hljs-keyword {
+  color: var(--ui-text-faint);
+}
+
+.hsm-codeblock .hljs-tag,
+.hsm-codeblock .hljs-name,
+.hsm-codeblock .hljs-selector-id,
+.hsm-codeblock .hljs-selector-class {
+  color: #116329;
+}
+
+.hsm-codeblock .hljs-deletion {
+  color: var(--ui-danger);
+}
+
+.hsm-codeblock .hljs-emphasis {
+  font-style: italic;
+}
+
+.hsm-codeblock .hljs-strong {
+  font-weight: 700;
+}
+
+/* 深色模式下的代码配色（浅色变量由外部代码主题覆盖时不冲突） */
+html[data-color-mode="dark"] .hsm-codeblock .hljs-keyword,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-selector-tag,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-literal {
+  color: #ff7b72;
+}
+
+html[data-color-mode="dark"] .hsm-codeblock .hljs-string,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-regexp,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-addition {
+  color: #a5d6ff;
+}
+
+html[data-color-mode="dark"] .hsm-codeblock .hljs-number,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-symbol,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-bullet {
+  color: #79c0ff;
+}
+
+html[data-color-mode="dark"] .hsm-codeblock .hljs-title,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-title.function_,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-section {
+  color: #d2a8ff;
+}
+
+html[data-color-mode="dark"] .hsm-codeblock .hljs-attr,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-attribute,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-variable,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-template-variable {
+  color: #ffa657;
+}
+
+html[data-color-mode="dark"] .hsm-codeblock .hljs-type,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-title.class_,
+html[data-color-mode="dark"] .hsm-codeblock .hljs-built_in {
+  color: #79c0ff;
+}
+
+/* ---------- Mermaid 图表 Widget ---------- */
+.hsm-mermaid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: .8em 0;
+  padding: 14px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  overflow-x: auto;
+  text-align: center;
+}
+
+.hsm-mermaid svg {
+  display: block;
+  width: 100%;         /* svg 自适应宽度 */
+  max-width: 100%;
+  height: auto;
+  max-height: 620px;
+}
+
+.hsm-mermaid__error {
+  color: var(--ui-danger);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  text-align: left;
+}
+
+/* Mermaid 渲染中的骨架占位 */
+.hsm-mermaid.is-rendering::before {
+  content: "图表渲染中…";
+  color: var(--ui-text-faint);
+  font-size: 12px;
+}
+
+/* ---------- 表格 Widget（可横向滚动） ---------- */
+.hsm-table-widget {
+  margin: .7em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+}
+
+.hsm-table-widget table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: .94em;
+}
+
+.hsm-table-widget th,
+.hsm-table-widget td {
+  padding: 6px 12px;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  text-align: left;
+  vertical-align: top;
+  min-width: 60px;
+  white-space: normal;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.hsm-table-widget th {
+  background: var(--ui-bg-alt);
+  font-weight: 600;
+  color: var(--ui-text);
+}
+
+.hsm-table-widget tr:last-child td {
+  border-bottom: none;
+}
+
+.hsm-table-widget th:last-child,
+.hsm-table-widget td:last-child {
+  border-right: none;
+}
+
+.hsm-table-widget tbody tr:hover td {
+  background: var(--ui-bg-hover);
+}
+
+/* 对齐方式（装饰器读取 :--- / :--: / ---:） */
+.hsm-table-widget th.is-align-center,
+.hsm-table-widget td.is-align-center {
+  text-align: center;
+}
+
+.hsm-table-widget th.is-align-right,
+.hsm-table-widget td.is-align-right {
+  text-align: right;
+}
+
+/* 当前单元格高亮（表格浮动工具条定位依据） */
+.hsm-table-widget td.is-active-cell,
+.hsm-table-widget th.is-active-cell {
+  background: var(--ui-accent-soft);
+  box-shadow: inset 0 0 0 1px var(--ui-accent);
+}
+
+/* 表格 Widget 的横向滚动条更细 */
+.hsm-table-widget::-webkit-scrollbar {
+  height: 8px;
+}
+
+/* ---------- 图片 Widget ---------- */
+.hsm-image-widget {
+  display: block;
+  margin: .8em 0;
+  text-align: center;
+  line-height: 0;
+}
+
+.hsm-image-widget img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-alt);
+  transition: box-shadow var(--ui-dur) var(--ui-ease), outline-color var(--ui-dur) var(--ui-ease);
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+}
+
+/* 选中态描边 */
+.hsm-image-widget.is-selected img,
+.hsm-image-widget:hover img {
+  outline-color: var(--ui-accent);
+  box-shadow: var(--ui-shadow);
+}
+
+/* 图片说明（alt 文本） */
+.hsm-image-widget__caption {
+  display: block;
+  margin-top: 6px;
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* 图片加载失败占位 */
+.hsm-image-widget.is-error img {
+  display: none;
+}
+
+.hsm-image-widget.is-error::before {
+  content: "🖼 图片无法加载";
+  display: block;
+  padding: 22px;
+  border: 1px dashed var(--ui-border-strong);
+  border-radius: var(--ui-radius);
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 图片宽度对齐修饰 */
+.hsm-image-widget.is-align-left {
+  text-align: left;
+}
+
+.hsm-image-widget.is-align-right {
+  text-align: right;
+}
+
+/* ---------- 分割线 Widget ---------- */
+.hsm-hr-widget {
+  height: 1px;
+  margin: 1.1em 0;
+  border: none;
+  background: var(--ui-border-strong);
+}
+
+/* ---------- 公式块 Widget ---------- */
+.hsm-mathblock-widget {
+  margin: .8em 0;
+  padding: 12px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-block-bg);
+  text-align: center;
+  overflow-x: auto;
+}
+
+.hsm-mathblock-widget .katex-display {
+  margin: 0;
+}
+
+.hsm-mathblock-widget .katex {
+  font-size: 1.08em;
+}
+
+/* 公式渲染失败提示 */
+.hsm-mathblock-widget.is-error {
+  color: var(--ui-danger);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  background: var(--ui-danger-soft);
+}
+
+/* ---------- YAML Front Matter Widget ---------- */
+.hsm-frontmatter-widget {
+  margin: .6em 0;
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--ui-warning);
+  border-radius: var(--ui-radius);
+  background: var(--ui-block-bg);
+  overflow: hidden;
+}
+
+.hsm-frontmatter-widget__head,
+.hsm-frontmatter-widget__toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 10px;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  letter-spacing: .4px;
+  text-align: left;
+}
+
+.hsm-frontmatter-widget__toggle:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-accent);
+}
+
+.hsm-frontmatter-widget__body {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ui-border);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  color: var(--ui-text-dim);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 折叠状态：只留标题条 */
+.hsm-frontmatter-widget.is-collapsed .hsm-frontmatter-widget__body {
+  display: none;
+}
+
+/* Front Matter 键值着色 */
+.hsm-frontmatter-widget__key {
+  color: var(--ui-accent);
+}
+
+.hsm-frontmatter-widget__value {
+  color: var(--ui-text);
+}
+
+/* ---------- 目录 TOC Widget ---------- */
+.hsm-toc-widget {
+  margin: .8em 0;
+  padding: 10px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-alt);
+}
+
+.hsm-toc-widget__title {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+
+.hsm-toc-widget__list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hsm-toc-widget__item {
+  display: block;
+  padding: 2px 0;
+  color: var(--ui-text-dim);
+  font-size: .92em;
+  line-height: 1.5;
+  text-align: left;
+  cursor: default;
+  transition: color var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-toc-widget__item:hover {
+  color: var(--ui-accent);
+}
+
+/* 目录按标题层级缩进 */
+.hsm-toc-widget__item--h1 { padding-left: 0; font-weight: 600; color: var(--ui-text); }
+.hsm-toc-widget__item--h2 { padding-left: 14px; }
+.hsm-toc-widget__item--h3 { padding-left: 28px; }
+.hsm-toc-widget__item--h4 { padding-left: 42px; font-size: .88em; }
+.hsm-toc-widget__item--h5 { padding-left: 56px; font-size: .88em; }
+.hsm-toc-widget__item--h6 { padding-left: 70px; font-size: .88em; }
+
+/* ---------- 列表圆点 Widget ---------- */
+.hsm-bullet-widget {
+  display: inline-block;
+  width: 1.1em;
+  height: 1.1em;
+  vertical-align: middle;
+  position: relative;
+  flex: none;
+}
+
+/* 用小圆点实现（避免 • 字符因字体不同而基线漂移） */
+.hsm-bullet-widget::before {
+  content: "";
+  display: block;
+  width: 5px;
+  height: 5px;
+  margin: .48em auto 0;
+  border-radius: 50%;
+  background: var(--ui-text-dim);
+  transition: background var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-bullet-widget:hover::before {
+  background: var(--ui-accent);
+}
+
+/* 第二层空心方块、第三层空心圆（与 Markdown 习惯一致） */
+.hsm-bullet-widget--2::before {
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ui-text-dim);
+}
+
+.hsm-bullet-widget--2:hover::before {
+  box-shadow: inset 0 0 0 1.5px var(--ui-accent);
+}
+
+.hsm-bullet-widget--3::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--ui-text-dim);
+}
+
+.hsm-bullet-widget--3:hover::before {
+  box-shadow: inset 0 0 0 1.5px var(--ui-accent);
+}
+
+/* 有序列表序号 */
+.hsm-ordinal-widget {
+  display: inline-block;
+  min-width: 1.6em;
+  padding-right: .25em;
+  color: var(--ui-text-dim);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  vertical-align: baseline;
+}
+
+/* ---------- 任务复选框 ---------- */
+.hsm-task-checkbox {
+  width: 15px;
+  height: 15px;
+  margin: 0 .4em 0 0;
+  accent-color: var(--ui-accent);   /* 勾选后即为品牌绿 */
+  vertical-align: middle;
+  cursor: default;
+  flex: none;
+}
+
+.hsm-task-checkbox:checked {
+  accent-color: var(--ui-accent);
+}
+
+/* 已完成任务：文字变灰并加删除线（配合 .hsm-line-task.is-done） */
+.hsm-task-checkbox:checked ~ .hsm-task-text {
+  color: var(--ui-text-faint);
+  text-decoration: line-through;
+}
+
+.hsm-task-text {
+  vertical-align: middle;
+}
+
+/* ============================================================
+   七、专注模式 / 源码模式
+   ============================================================ */
+/* 专注模式：非当前行淡化 */
+.app.is-focus-mode .cm-line:not(.hsm-active-line) {
+  opacity: .3;
+  transition: opacity .2s;
+}
+
+.app.is-focus-mode .cm-line.hsm-active-line {
+  opacity: 1;
+}
+
+/* 专注模式下隐藏行号栏与当前行底色，进一步减少干扰 */
+.app.is-focus-mode .cm-gutters {
+  display: none;
+}
+
+.app.is-focus-mode .cm-activeLine {
+  background: transparent;
+}
+
+/* 专注模式下正文更宽、更居中 */
+.app.is-focus-mode .cm-content {
+  padding-top: 64px;
+  padding-bottom: 64px;
+}
+
+/* 源码模式：关闭所有实时渲染带来的视觉修饰（widget 由 JS 不生成） */
+.app.is-source-mode .cm-content {
+  font-family: var(--editor-code-font);
+  font-size: calc(var(--editor-font-size) - 1px);
+  line-height: 1.6;
+}
+
+.app.is-source-mode .hsm-line-h1,
+.app.is-source-mode .hsm-line-h2,
+.app.is-source-mode .hsm-line-h3,
+.app.is-source-mode .hsm-line-h4,
+.app.is-source-mode .hsm-line-h5,
+.app.is-source-mode .hsm-line-h6 {
+  font-size: inherit;
+  font-weight: inherit;
+  border-bottom: none;
+  margin-top: 0;
+  padding-bottom: 0;
+  color: inherit;
+}
+
+.app.is-source-mode .hsm-line-quote,
+.app.is-source-mode .hsm-line-code,
+.app.is-source-mode .hsm-line-frontmatter,
+.app.is-source-mode .hsm-line-table {
+  background: transparent;
+  border-left-color: transparent;
+  padding-left: 0;
+  margin-left: 0;
+}
+
+/* 源码模式下状态栏按钮高亮提示（.statusitem--btn.is-active 亦可） */
+.app.is-source-mode #st-mode {
+  background: var(--ui-accent-soft);
+  color: var(--ui-accent);
+}
+
+/* ============================================================
+   八、与实际渲染实现对齐的补充规则（兼容对齐补丁）
+   以下类名由 editor/live-preview.ts 与 editor/markdown.ts 真实生成，
+   是对上面各节样式的一一对应补全，缺一不可。
+   ============================================================ */
+
+/* ---------- 8.1 行级装饰器补充 ---------- */
+/* 块级公式所在行（$ 之间的行） */
+.hsm-line-math {
+  background: var(--ui-block-bg);
+  color: var(--ui-text-dim);
+  font-family: var(--editor-code-font);
+  font-size: .9em;
+}
+
+/* 列表行的悬挂缩进，保证换行文字与首行文字对齐 */
+.hsm-line-list,
+.hsm-line-task {
+  padding-left: .2em;
+  text-indent: -.2em;
+}
+
+/* Front Matter 区间内的行（装饰器版本，Windows 换行亦适用） */
+.hsm-line-frontmatter + .hsm-line-frontmatter {
+  border-top: none;
+}
+
+/* ---------- 8.2 代码块：语言标签（两种实现都要覆盖） ---------- */
+/* live-preview.ts：data-lang 写在 .hsm-codeblock 上 */
+.hsm-codeblock[data-lang]::after {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 9px;
+  border-left: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0 var(--ui-radius) 0 var(--ui-radius-sm);
+  background: var(--ui-bg-alt);
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* markdown.ts：data-lang 写在 pre 上（用于预览/导出） */
+.hsm-codeblock pre[data-lang]::before,
+.hsm-preview pre[data-lang]::before {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 2px 9px;
+  border-left: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  border-radius: 0 var(--ui-radius) 0 var(--ui-radius-sm);
+  background: var(--ui-bg-alt);
+  color: var(--ui-text-faint);
+  font-family: var(--ui-font-mono);
+  font-size: 10.5px;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+.hsm-codeblock pre[data-lang] {
+  position: relative;
+}
+
+/* 代码块内首尾空白行不影响高度 */
+.hsm-codeblock code.hljs {
+  padding: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+/* ---------- 8.3 Mermaid 宿主容器与渲染状态 ---------- */
+/* live-preview.ts 生成 .hsm-widget.hsm-mermaid-host，内部再放 .hsm-mermaid */
+.hsm-mermaid-host {
+  display: block;
+  width: 100%;
+  margin: .7em 0;
+  padding: 8px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-elevated);
+  overflow-x: auto;
+  text-align: center;
+}
+
+.hsm-mermaid-host > .hsm-mermaid {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  min-height: 28px;
+}
+
+/* 图表加载中 */
+.hsm-mermaid-loading {
+  display: block;
+  padding: 16px 0;
+  color: var(--ui-text-faint);
+  font-size: 12px;
+  text-align: center;
+}
+
+.hsm-mermaid-loading::after {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  margin-left: 6px;
+  border: 2px solid var(--ui-border-strong);
+  border-top-color: var(--ui-accent);
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: hsm-spin .8s linear infinite;
+}
+
+@keyframes hsm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* 图表渲染失败 */
+.hsm-mermaid-error {
+  padding: 10px;
+  border: 1px solid var(--ui-danger);
+  border-radius: var(--ui-radius);
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  text-align: left;
+}
+
+.hsm-mermaid-error__title {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.hsm-mermaid-error__msg {
+  display: block;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* ---------- 8.4 表格 Widget 内部结构补全 ---------- */
+/* live-preview.ts 把渲染好的 HTML 直接塞进 .hsm-table-widget */
+.hsm-table-widget > table {
+  width: 100%;
+  font-size: .94em;
+}
+
+.hsm-table-widget caption {
+  padding: 6px 10px;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  text-align: left;
+}
+
+.hsm-table-widget thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+/* markdown.ts 的表格包裹层（预览/导出用） */
+.hsm-table-wrap {
+  display: block;
+  margin: .7em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg);
+}
+
+.hsm-table-wrap table {
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: .94em;
+}
+
+.hsm-table-wrap th,
+.hsm-table-wrap td {
+  padding: 6px 12px;
+  border-right: 1px solid var(--ui-border);
+  border-bottom: 1px solid var(--ui-border);
+  text-align: left;
+}
+
+.hsm-table-wrap th {
+  background: var(--ui-bg-alt);
+  font-weight: 600;
+}
+
+/* ---------- 8.5 图片 Widget（span 容器） ---------- */
+.hsm-image-widget {
+  display: inline-block;
+  width: 100%;
+  margin: .6em 0;
+  text-align: center;
+  line-height: 0;
+}
+
+.hsm-image-widget img {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ---------- 8.6 分割线 Widget（内部含 hr） ---------- */
+.hsm-hr-widget {
+  display: block;
+  height: auto;
+  margin: .9em 0;
+  background: none;
+}
+
+.hsm-hr-widget > hr {
+  height: 0;
+  margin: 0;
+  border: none;
+  border-top: 2px solid var(--ui-border-strong);
+}
+
+/* ---------- 8.7 公式块 Widget 与错误态 ---------- */
+.hsm-mathblock-widget .hsm-math-block {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+}
+
+/* markdown.ts 的块级公式容器（预览/导出用） */
+.hsm-math-block {
+  display: block;
+  margin: .8em 0;
+  padding: 12px 10px;
+  border-radius: var(--ui-radius);
+  background: var(--ui-block-bg);
+  text-align: center;
+  overflow-x: auto;
+}
+
+.hsm-math-block .katex-display {
+  margin: 0;
+}
+
+/* 公式解析失败 */
+.hsm-math-error {
+  padding: 0 3px;
+  border-radius: 2px;
+  background: var(--ui-danger-soft);
+  color: var(--ui-danger);
+  font-family: var(--ui-font-mono);
+  font-size: .92em;
+  cursor: default;
+}
+
+/* ---------- 8.8 Front Matter Widget（实际类名） ---------- */
+.hsm-frontmatter-head {
+  display: block;
+  padding: 5px 10px;
+  color: var(--ui-text-dim);
+  font-size: 11.5px;
+  letter-spacing: .4px;
+  cursor: default;
+  transition: background var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-frontmatter-head:hover {
+  background: var(--ui-bg-hover);
+  color: var(--ui-accent);
+}
+
+/* 头部右侧的小箭头，提示可折叠 */
+.hsm-frontmatter-head::after {
+  content: "▾";
+  float: right;
+  color: var(--ui-text-faint);
+  font-size: 10px;
+  transition: transform var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-frontmatter-widget.collapsed .hsm-frontmatter-head::after {
+  transform: rotate(-90deg);
+}
+
+.hsm-frontmatter-body {
+  margin: 0;
+  padding: 8px 10px;
+  border-top: 1px solid var(--ui-border);
+  font-family: var(--ui-font-mono);
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  color: var(--ui-text-dim);
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 折叠时隐藏正文（live-preview.ts 使用 collapsed 而非 is-collapsed） */
+.hsm-frontmatter-widget.collapsed .hsm-frontmatter-body {
+  display: none;
+}
+
+/* ---------- 8.9 目录 TOC Widget（实际 DOM） ---------- */
+.hsm-toc-widget .hsm-toc {
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.hsm-toc {
+  display: block;
+  margin: .8em 0;
+  padding: 10px 14px;
+  border: 1px solid var(--ui-border);
+  border-radius: var(--ui-radius);
+  background: var(--ui-bg-alt);
+}
+
+.hsm-toc-title {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--ui-text-faint);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+
+.hsm-toc ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hsm-toc li {
+  margin: 2px 0;
+  line-height: 1.5;
+}
+
+.hsm-toc li a {
+  display: block;
+  padding: 1px 0;
+  color: var(--ui-text-dim);
+  font-size: .92em;
+  text-decoration: none;
+  transition: color var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-toc li a:hover {
+  color: var(--ui-accent);
+}
+
+/* 目录按标题层级缩进 */
+.hsm-toc-level-1 > a { padding-left: 0; font-weight: 600; color: var(--ui-text); }
+.hsm-toc-level-2 > a { padding-left: 14px; }
+.hsm-toc-level-3 > a { padding-left: 28px; }
+.hsm-toc-level-4 > a { padding-left: 42px; font-size: .88em; }
+.hsm-toc-level-5 > a { padding-left: 56px; font-size: .88em; }
+.hsm-toc-level-6 > a { padding-left: 70px; font-size: .88em; }
+
+/* ---------- 8.10 列表项目符号（实际为文本 •，非伪元素） ---------- */
+/* 上面的 ::before 仅作兜底：若实现改为空元素也能显示圆点；
+   实际实现写入文本内容，因此这里压制伪元素避免出现两个点。 */
+.hsm-bullet-widget::before {
+  content: none;
+}
+
+.hsm-bullet-widget {
+  display: inline-block;
+  width: auto;
+  min-width: 1.1em;
+  height: auto;
+  margin-right: .35em;
+  color: var(--ui-text-dim);
+  font-size: .9em;
+  line-height: inherit;
+  vertical-align: baseline;
+  text-align: center;
+}
+
+.hsm-bullet-widget--ordered {
+  min-width: 1.7em;
+  margin-right: .25em;
+  font-family: var(--ui-font-mono);
+  font-size: .88em;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--ui-text-faint);
+}
+
+/* ---------- 8.11 任务复选框（.hsm-widget.hsm-task-checkbox 为 span 容器） ---------- */
+.hsm-task-checkbox {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 15px;
+  height: auto;
+  margin: 0 .35em 0 0;
+  padding: 0;
+  vertical-align: -2px;
+  line-height: 0;
+}
+
+.hsm-task-checkbox > input[type="checkbox"] {
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--ui-accent);
+  cursor: default;
+}
+
+/* ---------- 8.12 自定义容器（::: tip / warning / danger） ---------- */
+.hsm-container {
+  display: block;
+  margin: .8em 0;
+  padding: 8px 12px 4px;
+  border-left: 4px solid var(--ui-info);
+  border-radius: 0 var(--ui-radius) var(--ui-radius) 0;
+  background: var(--ui-info-soft);
+}
+
+.hsm-container-title {
+  margin-bottom: 4px;
+  color: var(--ui-info);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .3px;
+}
+
+.hsm-container.tip,
+.hsm-container.success {
+  border-left-color: var(--ui-success);
+  background: var(--ui-success-soft);
+}
+
+.hsm-container.tip > .hsm-container-title,
+.hsm-container.success > .hsm-container-title {
+  color: var(--ui-success);
+}
+
+.hsm-container.warning,
+.hsm-container.caution {
+  border-left-color: var(--ui-warning);
+  background: var(--ui-warning-soft);
+}
+
+.hsm-container.warning > .hsm-container-title,
+.hsm-container.caution > .hsm-container-title {
+  color: var(--ui-warning);
+}
+
+.hsm-container.danger,
+.hsm-container.error {
+  border-left-color: var(--ui-danger);
+  background: var(--ui-danger-soft);
+}
+
+.hsm-container.danger > .hsm-container-title,
+.hsm-container.error > .hsm-container-title {
+  color: var(--ui-danger);
+}
+
+.hsm-container > :last-child {
+  margin-bottom: 4px;
+}
+
+/* ---------- 8.13 文档预览容器（模态框内预览 / 导出复用） ---------- */
+/* 主题 CSS 由渲染进程运行时注入，这里只保证容器本身的排版兜底 */
+.hsm-preview {
+  display: block;
+  font-family: var(--editor-font, var(--ui-font));
+  font-size: var(--editor-font-size, 16px);
+  line-height: var(--editor-line-height, 1.7);
+  color: var(--ui-text);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.hsm-preview > :first-child {
+  margin-top: 0;
+}
+
+.hsm-preview img {
+  max-width: 100%;
+  height: auto;
+}
+
+.hsm-preview ::selection {
+  background: var(--ui-selection);
+}
+
+/* 运行时注入的主题/自定义主题样式表本身不渲染任何内容 */
+.hsm-doc-theme,
+.hsm-custom-theme {
+  display: none;
+}
+
+/* ============================================================
+   九、打印与导出（隐藏应用外壳，仅保留正文）
+   ============================================================ */
+/* 导出 HTML / PDF 时主进程会生成 .hsm-page 与 .hsm-preview 容器，
+   在应用内预览同一份文档时也沿用这套样式，保证"所见即所得"。
+   页脚页码占位 .pageNumber / .totalPages 由 printToPDF 注入。 */
+.hsm-page {
+  display: block;
+  width: 100%;
+  margin: 0 auto;
+  max-width: var(--editor-page-width, 800px);
+}
+
+.pageNumber,
+.totalPages {
+  font-family: var(--ui-font);
+  font-size: 11px;
+  color: var(--ui-text-faint);
+}
+
+@media print {
+  .titlebar,
+  .toolbar,
+  .statusbar,
+  .sidebar,
+  .resizer,
+  .tabs,
+  .findbar,
+  .welcome,
+  .overlay-root,
+  .toast-root,
+  .contextmenu-root {
+    display: none !important;
+  }
+
+  .editor-inner {
+    --editor-padding-x: 0px;
+    --editor-padding-y: 0px;
+    --editor-page-width: none;
+  }
+
+  .cm-content {
+    max-width: none;
+    padding: 0;
+  }
+
+  .cm-gutters {
+    display: none;
+  }
+
+  .hsm-codeblock,
+  .hsm-table-widget,
+  .hsm-mermaid {
+    break-inside: avoid;
+  }
+}
+
+/* ============================================================
+   十、预览与导出的兜底样式（无主题注入时同样可读）
+   主题 CSS 由 shared/themes.ts 在运行时注入并最终生效；
+   这里只为「未注入主题」的中间态与界面内联预览提供基础观感。
+   ============================================================ */
+
+/* Front Matter 折叠块（main.ts 内联预览与导出 HTML 共用类名） */
+.hsm-front-matter {
+  display: block;
+  margin: .6em 0;
+  border: 1px solid var(--ui-border);
+  border-left: 3px solid var(--ui-warning);
+  border-radius: var(--ui-radius);
+  background: var(--ui-block-bg);
+  overflow: hidden;
+  font-family: var(--ui-font-mono);
+  font-size: .85em;
+}
+
+.hsm-front-matter-title {
+  padding: 5px 10px;
+  background: var(--ui-bg-alt);
+  color: var(--ui-text-dim);
+  font-family: var(--ui-font);
+  font-size: .95em;
+  letter-spacing: .4px;
+  cursor: default;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.hsm-front-matter pre {
+  margin: 0;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.65;
+  color: var(--ui-text-dim);
+  white-space: pre-wrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* 折叠态隐藏正文 */
+.hsm-front-matter.collapsed pre {
+  display: none;
+}
+
+/* 标题两侧的锚点链接（悬停显示，默认不可见） */
+.hsm-preview .hsm-anchor,
+.doc-preview .hsm-anchor {
+  position: absolute;
+  left: -1em;
+  opacity: 0;
+  color: var(--ui-text-faint);
+  font-weight: 400;
+  text-decoration: none;
+  cursor: default;
+  transition: opacity var(--ui-dur) var(--ui-ease), color var(--ui-dur) var(--ui-ease);
+}
+
+.hsm-preview h1:hover .hsm-anchor,
+.hsm-preview h2:hover .hsm-anchor,
+.hsm-preview h3:hover .hsm-anchor,
+.hsm-preview h4:hover .hsm-anchor,
+.hsm-preview h5:hover .hsm-anchor,
+.hsm-preview h6:hover .hsm-anchor {
+  opacity: 1;
+  color: var(--ui-accent);
+}
+
+/* 公式编号（KaTeX \tag 或主题未覆盖时的兜底） */
+.hsm-math-number {
+  display: inline-block;
+  margin-left: .8em;
+  color: var(--ui-text-faint);
+  font-size: .85em;
+  font-variant-numeric: tabular-nums;
+}

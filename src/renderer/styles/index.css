@@ -1,0 +1,29 @@
+/**
+ * 花生苗 Markdown 编辑器 —— 样式总入口
+ * ------------------------------------------------------------------
+ * 本文件是所有样式的唯一入口，由构建脚本（scripts/build.mjs）交给 esbuild
+ * 打包成 dist/renderer/renderer.css，被 index.html 以 <link> 引入。
+ *
+ * 注意：下面第一行的 KaTeX 样式来自 node_modules/katex/dist/，
+ *       必须由打包器在构建期解析（Electron 页面通过 file:// 加载，
+ *       运行时无法访问 node_modules），因此保留这种裸模块写法。
+ *
+ * 加载顺序即层叠顺序，后者优先级更高，切勿随意调整：
+ *   base      → 变量、重置、滚动条、工具类
+ *   layout    → 标题栏、菜单栏、工具栏、侧边栏、主体、状态栏、窗口按钮
+ *   editor    → 编辑区与 CodeMirror 6 实时渲染装饰器
+ *   ui        → 标签页、文件树、大纲、最近文件、搜索结果、按钮、输入框、Toast
+ *   overlays  → 模态框、设置、快捷键面板、快速打开、右键菜单、表格浮动工具条
+ *   responsive→ 窄窗口适配（必须最后加载才能覆盖上面的固定尺寸）
+ *
+ * 作者：何飞    联系方式：微信 6731663
+ * 开源协议：MIT
+ */
+
+@import "katex/dist/katex.min.css";
+@import "./base.css";
+@import "./layout.css";
+@import "./editor.css";
+@import "./ui.css";
+@import "./overlays.css";
+@import "./responsive.css";

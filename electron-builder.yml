@@ -1,0 +1,209 @@
+# ===================================================================
+# 花生苗 Markdown 编辑器 —— electron-builder 打包配置
+# -------------------------------------------------------------------
+# 作者：何飞    联系方式：微信 6731663
+# 开源协议：MIT
+#
+# 打包命令：
+#   npm run dist:win    生成 Windows 安装包（NSIS）
+#   npm run dist:linux  生成 Linux 安装包（AppImage / deb / tar.gz）
+#   npm run pack:dir    只生成免安装目录（调试用）
+# 产物统一输出到 release/ 目录。
+# ===================================================================
+
+# 构建 Windows 安装包时的 wine 说明
+# ------------------------------------------------------------------
+# 在非 Windows 机器上产出 NSIS 安装包时，NSIS 打包流程需要用 wine 运行一次
+# 安装程序以生成卸载程序。electron-builder 默认会去 PATH 中查找系统 wine：
+#
+#   Ubuntu / Debian：  sudo apt install wine64
+#   Fedora：           sudo dnf install wine
+#   macOS：            brew install --cask wine-stable
+#
+# 若系统 wine 不在默认位置，可设置环境变量 USE_SYSTEM_WINE=true
+# 并把自定义 wine 加入 PATH。
+# 在 Windows 机器上构建则完全不需要 wine。
+appId: com.huashengmiao.markdown
+productName: 花生苗Markdown编辑器
+copyright: Copyright © 2025 何飞 (He Fei) · 微信 6731663 · MIT License
+
+directories:
+  output: release
+  buildResources: build
+
+# 打进安装包的文件：只包含构建产物与清单
+# 说明：渲染进程与主进程都已由 esbuild 完整打包（含 markdown-it、KaTeX、
+#       highlight.js 等），连 KaTeX 的公式字体也已复制到 dist/renderer/katex/，
+#       因此运行时完全不需要 node_modules。排除它可以让安装包体积减少约 70MB。
+files:
+  - dist/**/*
+  - package.json
+  - '!node_modules/**/*'
+  - '!**/*.map'
+  - '!**/*.ts'
+
+# 使用 asar 归档，既减小体积又能防止用户误改内部文件
+asar: true
+# 需要对 asar 内部文件做特殊处理的场景较少，这里保持默认压缩等级
+compression: maximum
+
+# ------------------------------------------------------------------
+# Windows
+# ------------------------------------------------------------------
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    # 免安装便携版，方便用户放在 U 盘里使用
+    - target: portable
+      arch:
+        - x64
+  icon: build/icon.png
+  # 尽量保留中文元数据；若构建环境缺少 wine，electron-builder 会自动跳过
+  # 对 exe 资源的修改，此时程序仍可正常安装与运行
+  legalTrademarks: 花生苗 Markdown 编辑器
+  requestedExecutionLevel: asInvoker
+  # 不调用 signtool 做代码签名：
+  #   · 本软件免费开源、未购买 Windows 代码签名证书，跳过可避免用户在
+  #     "未知发布者"提示上产生误解，也让没有安装 wine 的构建机能够正常出包；
+  #   · 但仍保留 signAndEditExecutable（基于纯 JS 的 resedit 实现），
+  #     它可以正确写入应用程序图标、版本号与产品名称等 PE 资源信息。
+  signExecutable: false
+  signAndEditExecutable: true
+
+# ------------------------------------------------------------------
+# NSIS 安装向导（重点：可自定义安装路径 + 可选快捷方式）
+# ------------------------------------------------------------------
+nsis:
+  # oneClick=false 表示使用"辅助安装向导"，用户可以看到安装路径选择页
+  oneClick: false
+  # 默认按当前用户安装，无需管理员权限；用户仍可选"为所有用户安装"
+  perMachine: false
+  allowElevation: true
+  # 【需求 N-13】安装向导中提供"浏览"按钮，用户可自由选择安装目录
+  allowToChangeInstallationDirectory: true
+  # 【需求 N-13】桌面快捷方式复选框（向导中用户可勾选/取消）
+  createDesktopShortcut: true
+  # 【需求 N-13】开始菜单快捷方式复选框
+  createStartMenuShortcut: true
+  # 快捷方式名称
+  shortcutName: 花生苗 Markdown 编辑器
+  # 开始菜单中不再额外建子目录，减少层级
+  menuCategory: false
+  # 卸载时保留用户配置（设置、最近文件、版本历史），避免重装后数据丢失
+  deleteAppDataOnUninstall: false
+  # 安装完成后立即运行
+  runAfterFinish: true
+  # 允许用户选择是否为 .md 文件创建关联
+  # （复选框由 build/installer.nsh 中的自定义脚本提供）
+  include: build/installer.nsh
+  # 安装界面语言
+  installerLanguages:
+    - zh_CN
+    - en_US
+  language: '2052'
+  # 卸载入口在"应用和功能"中的显示名称
+  uninstallDisplayName: 花生苗 Markdown 编辑器 ${version}
+  # 安装包文件名（与便携版区分，避免重名）
+  artifactName: 花生苗Markdown编辑器-Setup-${version}-${arch}.${ext}
+
+# .md 等文件关联：安装后双击 Markdown 文件可用本软件打开
+fileAssociations:
+  - ext: md
+    name: Markdown 文档
+    description: Markdown 文档
+    icon: build/icon.png
+    role: Editor
+  - ext: markdown
+    name: Markdown 文档
+    description: Markdown 文档
+    icon: build/icon.png
+    role: Editor
+  - ext: mdx
+    name: MDX 文档
+    description: MDX 文档
+    icon: build/icon.png
+    role: Editor
+
+# ------------------------------------------------------------------
+# Linux
+# ------------------------------------------------------------------
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+    - target: tar.gz
+      arch:
+        - x64
+  icon: build/icon.png
+  category: Office
+  # 让桌面环境能把运行中的窗口与本 .desktop 条目关联起来
+  syncDesktopName: true
+  synopsis: 开源免费的所见即所得 Markdown 编辑器
+  description: |
+    花生苗 Markdown 编辑器是一款开源免费、所见即所得（Typora 类）的跨平台
+    Markdown 编辑器，支持实时渲染、数学公式、Mermaid 图表、多主题、
+    导出 HTML/PDF/图片等能力。作者：何飞，微信：6731663，MIT 开源协议。
+  maintainer: 何飞 <微信 6731663>
+  vendor: 花生苗
+  desktop:
+    entry:
+      Name: 花生苗 Markdown 编辑器
+      Comment: 开源免费的所见即所得 Markdown 编辑器
+      Categories: Office;TextEditor;
+      Keywords: markdown;editor;写作;笔记;
+      StartupWMClass: huashengmiao-markdown
+  artifactName: ${name}-${version}-${arch}.${ext}
+
+# ------------------------------------------------------------------
+# Linux deb 包
+# ------------------------------------------------------------------
+deb:
+  # Electron 应用在多数发行版上开箱即用，这里只声明最基础的运行库依赖
+  depends:
+    - libgtk-3-0
+    - libnotify4
+    - libnss3
+    - libxss1
+    - libxtst6
+    - xdg-utils
+    - libatspi2.0-0
+    - libsecret-1-0
+  priority: optional
+  compression: xz
+
+# ------------------------------------------------------------------
+# Windows 便携版
+# ------------------------------------------------------------------
+portable:
+  artifactName: 花生苗Markdown编辑器-便携版-${version}-${arch}.${ext}
+
+# ------------------------------------------------------------------
+# macOS（预留，需在 macOS 机器上构建）
+# ------------------------------------------------------------------
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+  icon: build/icon.png
+  category: public.app-category.productivity
+  artifactName: 花生苗Markdown编辑器-${version}-${arch}.${ext}
+  # 未签名，用户首次打开需在"系统设置 → 隐私与安全性"中允许
+  identity: null
+
+# ------------------------------------------------------------------
+# 其它
+# ------------------------------------------------------------------
+# 关闭自动更新（本地优先，不做联网检查）
+publish: null
+
+# 构建时使用的镜像（国内网络环境加速）
+electronDownload:
+  mirror: https://registry.npmmirror.com/-/binary/electron/
